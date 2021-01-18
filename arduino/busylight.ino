@@ -1,3 +1,38 @@
+/*
+** Steve Willoughby <steve@alchemy.com>
+**
+** Simple busylight indicator, controlled via USB serial commands.
+** To use, open the USB device as a serial port and send single 
+** character commands to it:
+**
+**  X all lights off
+**  G only green layer on
+**  Y only yellow layer on
+**  R only red layer #1 on
+**  2 only red layer #2 on
+**  ! only both red layers on
+**
+** The alphabetic commands may be sent in either case.
+** Any other bytes are simply ignored.
+**
+** The physical LED tree is stacked like so:
+**
+**                    RED 2   ==================
+**                                    ||
+**                    RED 1   ==================
+**                                    ||
+**                    YELLOW  ==================
+**                                    ||
+**                    GREEN   ==================
+**                                    ||
+**                                    ||
+**                                    ||
+**                                    ||
+**                                    ||
+**                                    ||
+**                                    ||
+*/
+
 const int tree_green  = 6
 const int tree_yellow = 7
 const int tree_red_1  = 8
@@ -36,6 +71,10 @@ void loop() {
 			case 'r':
 				all_off();
 				digitalWrite(tree_red_1, HIGH);
+				break;
+			case '2':
+				all_off();
+				digitalWrite(tree_red_2, HIGH);
 				break;
 			case '!':
 				all_off();
