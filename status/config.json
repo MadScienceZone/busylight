@@ -1,0 +1,5 @@
+{
+	"Calendars":      [ "primary" ],
+	"TokenFile":      "MYHOMEDIR/.busylight/auth.json",
+	"CredentialFile": "MYHOMEDIR/.busylight/credentials.json"
+}
