@@ -18,8 +18,6 @@ import (
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	"google.golang.org/api/calendar/v3"
-
-	_ "github.com/go-sql-driver/mysql"
 )
 
 type ConfigData struct {
@@ -135,7 +133,7 @@ func main() {
 	freelist, err := srv.Freebusy.Query(&query).Do()
 	if err != nil {
 		log.Fatalf("Error reading calendar: %v", err)
-		++errors
+		errors++
 	}
 	for calId, calData := range freelist.Calendars {
 		log.Printf("<%v>", calId)
