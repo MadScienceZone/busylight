@@ -11,6 +11,7 @@
 **  R only red layer #1 on
 **  2 only red layer #2 on
 **  ! only both red layers on
+**  # alternately flash red layers
 **
 ** The alphabetic commands may be sent in either case.
 ** Any other bytes are simply ignored.
@@ -37,6 +38,7 @@ const int tree_green  = 6
 const int tree_yellow = 7
 const int tree_red_1  = 8
 const int tree_red_2  = 9
+static int tree_flash = 0
 
 void setup() {
 	Serial.begin(9600);
@@ -48,6 +50,7 @@ void setup() {
 }
 
 void all_off() {
+	tree_flash = 0;
 	digitalWrite(tree_green, LOW);
 	digitalWrite(tree_yellow, LOW);
 	digitalWrite(tree_red_1, LOW);
@@ -84,6 +87,20 @@ void loop() {
 			case 'X':
 			case 'x':
 				all_off();
+				break;
+			case '#':
+				tree_flash = 1;
 		}
+	}
+	if (tree_flash == 1) {
+		all_off();
+		tree_flash = 2;
+		digitalWrite(tree_red_1, HIGH);
+		delay(500);
+	} else if (tree_flash == 2) {
+		all_off();
+		tree_flash = 1;
+		digitalWrite(tree_red_2, HIGH);
+		delay(500);
 	}
 }
