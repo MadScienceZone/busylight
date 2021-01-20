@@ -47,6 +47,15 @@ void setup() {
 	pinMode(tree_red_1, OUTPUT);
 	pinMode(tree_red_2, OUTPUT);
 	all_off();
+	digitalWrite(tree_red_2, LOW);
+	delay(200);
+	digitalWrite(tree_red_1, LOW);
+	delay(200);
+	digitalWrite(tree_yellow, LOW);
+	delay(200);
+	digitalWrite(tree_green, LOW);
+	delay(200);
+	all_off();
 }
 
 void all_off() {
@@ -96,11 +105,11 @@ void loop() {
 		all_off();
 		tree_flash = 2;
 		digitalWrite(tree_red_1, HIGH);
-		delay(500);
+		delay(250);
 	} else if (tree_flash == 2) {
 		all_off();
 		tree_flash = 1;
 		digitalWrite(tree_red_2, HIGH);
-		delay(500);
+		delay(250);
 	}
 }
