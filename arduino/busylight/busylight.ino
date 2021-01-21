@@ -34,11 +34,11 @@
 **                                    ||
 */
 
-const int tree_green  = 6
-const int tree_yellow = 7
-const int tree_red_1  = 8
-const int tree_red_2  = 9
-static int tree_flash = 0
+const int tree_green  = 6;
+const int tree_yellow = 7;
+const int tree_red_1  = 8;
+const int tree_red_2  = 9;
+static int tree_flash = 0;
 
 void setup() {
 	Serial.begin(9600);
