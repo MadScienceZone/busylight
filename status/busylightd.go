@@ -26,10 +26,11 @@ import (
 	"time"
 	"os/user"
 	"path/filepath"
+	"sort"
 	"golang.org/x/net/context"
 	"golang.org/x/oauth2"
-//	"golang.org/x/oauth2/google"
-//	"google.golang.org/api/calendar/v3"
+	"golang.org/x/oauth2/google"
+	"google.golang.org/api/calendar/v3"
 	"go.bug.st/serial"
 	"os/signal"
 	"syscall"
@@ -96,6 +97,167 @@ func saveToken(path string, token *oauth2.Token) {
 		json.NewEncoder(f).Encode(token)
 	}
 }
+
+type BusyPeriod struct{
+	Start, End time.Time
+}
+
+type ByStartTime []BusyPeriod
+
+func (a ByStartTime) Len() int {
+	return len(a)
+}
+
+func (a ByStartTime) Less(i, j int) bool {
+	return a[i].Start.Before(a[j].Start)
+}
+
+func (a ByStartTime) Swap(i, j int) {
+	a[i], a[j] = a[j], a[i]
+}
+
+type CalendarAvailability struct{
+	LastPollTime      time.Time
+	UpcomingPeriods []BusyPeriod	// will be in chronological order
+}
+
+func (cal *CalendarAvailability) RemoveExpiredPeriods(config *ConfigData) {
+	for len(cal.UpcomingPeriods) > 0 {
+		if time.Now().Add(5 * time.Second).After(cal.UpcomingPeriods[0].End) {
+			cal.UpcomingPeriods = cal.UpcomingPeriods[1:]
+		} else {
+			break
+		}
+	}
+	if len(cal.UpcomingPeriods) == 0 && time.Now().After(cal.LastPollTime.Add(30 * time.Minute)) {
+		err := cal.Refresh(config)
+		if err != nil {
+			config.logger.Printf("Unable to refresh calendar data while removing expired periods: %v", err)
+		}
+	}
+	// yes, we're trusting the Google service not to give us past events.
+}
+
+func (cal *CalendarAvailability) NextTransitionTime(config *ConfigData) time.Time {
+	cal.RemoveExpiredPeriods(config)
+
+	if len(cal.UpcomingPeriods) == 0 {
+		// nothing scheduled for the time we queried about.
+		// Tell the caller to check back in 8 hours.
+		return time.Now().Add(8 * time.Hour)
+	}
+	if time.Now().Add(5 * time.Second).After(cal.UpcomingPeriods[0].Start) {
+		// we're already into the period, so the next transition will be at its end
+		return cal.UpcomingPeriods[0].End
+	}
+	// the period hasn't started yet so the transition will be at its beginning.
+	return cal.UpcomingPeriods[0].Start
+}
+
+func (cal *CalendarAvailability) ScheduledBusyNow(config *ConfigData) bool {
+	cal.RemoveExpiredPeriods(config)
+
+	if len(cal.UpcomingPeriods) == 0 {
+		return false
+	}
+	if time.Now().Add(5 * time.Second).After(cal.UpcomingPeriods[0].Start) {
+		return true
+	}
+	return false
+}
+
+func (cal *CalendarAvailability) Refresh(config *ConfigData) error {
+	config.logger.Printf("Polling Google Calendars")
+	googleConfig, err := google.ConfigFromJSON(config.googleConfig, calendar.CalendarReadonlyScope)
+	if err != nil { return err }
+
+	client := getClient(googleConfig, config.TokenFile)
+	srv, err := calendar.New(client)
+	if err != nil { return err }
+
+	var query calendar.FreeBusyRequest
+	query.TimeMax = time.Now().Add(time.Hour * 8).Format(time.RFC3339)
+	query.TimeMin = time.Now().Format(time.RFC3339)
+	for _, calId := range config.Calendars {
+		query.Items = append(query.Items, &calendar.FreeBusyRequestItem{Id: calId})
+	}
+	freelist, err := srv.Freebusy.Query(&query).Do()
+	if err != nil { return err }
+
+	var rawbusylist []BusyPeriod
+	for calId, calData := range freelist.Calendars {
+		for _, e := range calData.Errors {
+			config.logger.Printf("ERROR: Calendar \"%s\": %v", calId, e)
+		}
+		for _, busy := range calData.Busy {
+			config.logger.Printf("Calendar \"%s\": busy %v - %v", calId, busy.Start, busy.End)
+			startTime, err := time.Parse(time.RFC3339, busy.Start)
+			if err != nil {
+				config.logger.Printf("ERROR: Unable to parse start time \"%v\": %v", busy.Start, err)
+				continue
+			}
+			endTime, err := time.Parse(time.RFC3339, busy.End)
+			if err != nil {
+				config.logger.Printf("ERROR: Unable to parse end time \"%v\": %v", busy.End, err)
+				continue
+			}
+			rawbusylist = append(rawbusylist, BusyPeriod{Start: startTime, End: endTime})
+		}
+	}
+	// smush list and sort it
+	config.logger.Printf("DEBUG: Initial list: %v", rawbusylist)
+	sort.Sort(ByStartTime(rawbusylist))
+	config.logger.Printf("DEBUG: Sorted list: %v", rawbusylist)
+	var currentStart time.Time
+	var currentEnd   time.Time
+
+	cal.UpcomingPeriods = nil
+	for _, eachPeriod := range rawbusylist {
+		if currentEnd.IsZero() {
+			currentEnd = eachPeriod.End
+		}
+
+		if currentStart.IsZero() {
+			currentStart = eachPeriod.Start
+		} else if eachPeriod.Start.After(currentEnd) {
+			// disjoint; we've reached the end of our busy time, so commit what we have
+			cal.UpcomingPeriods = append(cal.UpcomingPeriods, BusyPeriod{Start: currentStart, End: currentEnd})
+			currentStart = eachPeriod.Start
+			currentEnd = eachPeriod.End
+		} else if eachPeriod.End.After(currentEnd) {
+			// overlapping; this ends after what we have so far, so extend our busy time
+			currentEnd = eachPeriod.End
+		} else {
+			// overlapping; this is completely inside the time we already have, so we don't need to do anything.
+		}
+	}
+	if !currentStart.IsZero() {
+		// we need to commit the last one, too
+		cal.UpcomingPeriods = append(cal.UpcomingPeriods, BusyPeriod{Start: currentStart, End: currentEnd})
+	}
+	config.logger.Printf("DEBUG: final list: %v", cal.UpcomingPeriods)
+	cal.LastPollTime = time.Now()
+	return nil
+}
+
+//
+// we can maintain a list of busy/free times since the last time we polled the calendar.
+// from that we can also know when the next transition time will be
+// global state:
+//  busy until next transition
+//  free until next transition
+// Also globally know if in zoom meeting, which overrides the busy/free indicator
+//  until the meeting ends.
+// 
+// At transition time:
+//  change global state
+//  signal status if not in zoom meeting
+//  schedule next transition
+//
+// Hourly:
+//  reload state from google
+//  update status as it should be now
+//  re-schedule next transition
 
 func setup(config *ConfigData) error {
 	var thisUser *user.User
@@ -179,6 +341,37 @@ func main() {
 	port.Write([]byte("X"))
 
 	//
+	// Get initial calendar download
+	//
+	var busyTimes CalendarAvailability
+	err = busyTimes.Refresh(&config)
+	if err != nil {
+		config.logger.Printf("Error updating busy/free times from calendar: %v", err)
+	}
+
+	isZoomNow := false
+	isZoomMuted := false
+	isActiveNow := true
+
+
+	//
+	// Set the current state and schedule for next transition
+	//
+	isBusyTimeNow := busyTimes.ScheduledBusyNow(&config)
+	nextTransitionTime := busyTimes.NextTransitionTime(&config)
+	transitionTimer := time.NewTimer(time.Until(nextTransitionTime))
+
+	if isBusyTimeNow {
+		port.Write([]byte("Y"))
+	} else {
+		port.Write([]byte("G"))
+	}
+
+	// We will keep a timer for refreshing the calendar and one for transitioning
+	// to the next free/busy state
+	refreshTimer := time.NewTicker(time.Hour * 1)
+
+	//
 	// Main event loop:
 	// 	On incoming signals, indicate light status as requested by signaller
 	//  Otherwise, update Google calendar status hourly while active
@@ -187,29 +380,74 @@ func main() {
 eventLoop:
 	for {
 		select {
+			case _ = <-refreshTimer.C:
+				if isActiveNow {
+					config.logger.Printf("Periodic calendar refresh starts")
+					err = busyTimes.Refresh(&config)
+					if err != nil {
+						config.logger.Printf("Reload failed: %v", err)
+					}
+					isBusyTimeNow = busyTimes.ScheduledBusyNow(&config)
+					transitionTimer.Stop()
+					transitionTimer.Reset(time.Until(busyTimes.NextTransitionTime(&config)))
+				} else {
+					config.logger.Printf("Ignoring scheduled request to refresh calendar since service isn't active now.")
+					refreshTimer.Stop()
+				}
+
+			case _ = <-transitionTimer.C:
+				config.logger.Printf("Scheduled status change")
+				isBusyTimeNow = busyTimes.ScheduledBusyNow(&config)
+				transitionTimer.Reset(time.Until(busyTimes.NextTransitionTime(&config)))
+
 			case externalSignal := <-req:
 				switch externalSignal {
 					case syscall.SIGHUP:
 						config.logger.Printf("ZOOM: Call ended")
-						// XXX go to state per calendar
-						port.Write([]byte("G"))
+						isZoomNow = false
 
 					case syscall.SIGUSR1:
 						config.logger.Printf("ZOOM: Muted")
-						port.Write([]byte("R"))
+						isZoomNow = true
+						isZoomMuted = true
 
 					case syscall.SIGUSR2:
 						config.logger.Printf("ZOOM: Unmuted")
-						port.Write([]byte("#"))
+						isZoomNow = true
+						isZoomMuted = false
 
 					case syscall.SIGWINCH:
 						config.logger.Printf("Toggle active state")
-						// XXX make a proper toggle
-						port.Write([]byte("X"))
+						isActiveNow = !isActiveNow
+						if isActiveNow {
+							config.logger.Printf("Activating service; getting fresh calendar data")
+							err = busyTimes.Refresh(&config)
+							if err != nil {
+								config.logger.Printf("Error updating busy/free times from calendar: %v", err)
+							}
+							config.logger.Printf("Resetting timers")
+							refreshTimer.Reset(1 * time.Hour)
+							isBusyTimeNow = busyTimes.ScheduledBusyNow(&config)
+							transitionTimer.Reset(time.Until(busyTimes.NextTransitionTime(&config)))
+						} else {
+							config.logger.Printf("Stopping timers")
+							refreshTimer.Stop()
+							transitionTimer.Stop()
+						}
 
 					case syscall.SIGINFO:
-						config.logger.Printf("Reloading calendar status by request")
-						// XXX
+						if isActiveNow {
+							config.logger.Printf("Reloading calendar status by request")
+							err = busyTimes.Refresh(&config)
+							if err != nil {
+								config.logger.Printf("Reload failed: %v", err)
+							}
+							isBusyTimeNow = busyTimes.ScheduledBusyNow(&config)
+							transitionTimer.Stop()
+							transitionTimer.Reset(time.Until(busyTimes.NextTransitionTime(&config)))
+						} else {
+							config.logger.Printf("Ignoring reload request since service isn't active now.")
+						}
 
 					case syscall.SIGINT:
 						config.logger.Printf("Received interrupt signal")
@@ -218,6 +456,28 @@ eventLoop:
 					default:
 						config.logger.Printf("Received unexpeced signal %v (ignored)", externalSignal)
 				}
+		}
+
+		// Set signal to current state
+		if isActiveNow {
+			if isZoomNow {
+				if isZoomMuted {
+					port.Write([]byte("R"))
+					config.logger.Printf("Signal ZOOM MUTED")
+				} else {
+					port.Write([]byte("#"))
+					config.logger.Printf("Signal ZOOM OPEN")
+				}
+			} else if isBusyTimeNow {
+				port.Write([]byte("Y"))
+				config.logger.Printf("Signal BUSY")
+			} else {
+				port.Write([]byte("G"))
+				config.logger.Printf("Signal FREE")
+			}
+		} else {
+			port.Write([]byte("X"))
+			config.logger.Printf("Signal off")
 		}
 	}
 
