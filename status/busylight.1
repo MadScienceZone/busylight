@@ -146,7 +146,7 @@ in that directory.
 .LP
 This file provides all of the configuration parameters needed for the ongoing operation of the system.
 As the name implies, it is in JSON format, as a single object with the following fields:
-.TP
+.TP 4
 .B Calendars
 This is a list of calendar IDs as provided by Google. The string
 .B "\[dq]primary\[dq]"
@@ -262,7 +262,7 @@ account settings on Google's website to revoke that authorization.
 The 
 .B busylightd
 daemon responds to the following signals:
-.TP
+.TP 9
 .B HUP
 The video conference call is over. The daemon changes the light signal to reflect the user's
 busy/free status as understood from the last poll of the Google calendars.
@@ -292,8 +292,6 @@ poll again an hour after that, and every hour thereafter.
 .LP
 Steve Willoughby 
 .I "<steve@alchemy.com>"
-.LP
-
 .SH BUGS
 .LP
 The

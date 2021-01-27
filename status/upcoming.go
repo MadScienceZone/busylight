@@ -136,12 +136,18 @@ func main() {
 		errors++
 	}
 	for calId, calData := range freelist.Calendars {
-		log.Printf("<%v>", calId)
+		log.Printf("For calendar <%v>:", calId)
 		for _, e := range calData.Errors {
 			log.Printf("   ERROR %v", e)
 		}
 		for _, busy := range calData.Busy {
-			log.Printf("   %v - %v", busy.Start, busy.End)
+			st, err := time.Parse(time.RFC3339, busy.Start)
+			et, err2:= time.Parse(time.RFC3339, busy.End)
+			if err != nil || err2 != nil {
+				log.Printf("   ERROR: Unable to understand these time values: %v - %v", busy.Start, busy.End)
+			} else {
+				log.Printf("   Busy %v - %v", st.Local().Format(time.UnixDate), et.Local().Format(time.UnixDate))
+			}
 		}
 	}
 	if errors > 0 {
