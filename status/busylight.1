@@ -1,0 +1,302 @@
+.TH BUSYLIGHT 1 1.0 26-Jan-2021 "User Commands"
+.SH NAME
+busylight \- display busy/free status to passers-by
+.SH SYNOPSIS
+.B busylight
+.I state
+.LP
+.B busylightd
+.LP
+.B busylight-standalone
+.I color
+.LP
+.B upcoming
+.SH OPTIONS
+.SS busylight
+.LP
+The
+.B busylight
+CLI tool signals the daemon to manually assume a state change according to the option provided. Multiple
+.I state
+options may be given in a single invocation, but note that the signal will only report the most
+immediately-relevant state at any given time. It is safe to include
+.B \-\-reload
+with other states, but if two conflicting states are given (e.g.,
+.B \-\-mute
+and
+.BR \-\-open ),
+it is undefined which will actually take effect.
+.TP 10
+.B \-\-cal
+Tell the daemon to return to reporting state based on calendar availability. (This signals that a Zoom call
+has ended.)
+.TP
+.B \-\-kill
+Tell the daemon to terminate immediately.
+.TP
+.B \-\-mute
+Tell the daemon that we are in a Zoom call with the microphone muted.
+.TP
+.B \-\-open
+Tell the daemon that we are in a Zoom call with the microphone open.
+.TP
+.B \-\-reload
+Force the daemon to re-poll the calendar service to get updates to the schedule rather than waiting for the
+next periodic poll time.
+.TP
+.B \-\-zzz
+Toggle the active state of the daemon. If it was active, it turns off the signal light and stops polling the calendar service.
+Otherwise, it resumes active state, polls the calendar service and updates the signal light appropriately.
+.SS busylight-standalone
+.LP
+The
+.B busylight-standalone
+program is intended more for testing the hardware than actual production use. It connects directly to
+a (hardcoded) port and commands the light device to display a color based on the option given, which must be one
+(and only one) of the following. Note that all other lights are turned off when making any of these changes.
+.TP 10
+.B \-\-blud
+Turn on the blue light.
+.TP
+.B \-\-green
+Turn on the green light.
+.TP
+.B \-\-list
+List the available ports on the system. (Currently it is necessary to change the target port in the source code.)
+.TP
+.B \-\-red
+Turn on the lower red light.
+.TP
+.B \-\-red2
+Turn on the upper red light.
+.TP
+.B \-\-redblue
+Flash the upper red light and the blue light alternately.
+.TP
+.B \-\-redred
+Flash both red lights alternately.
+.TP
+.B \-\-reds
+Turn on both red lights.
+.TP
+.B \-\-off
+Turn all lights off.
+.TP
+.B \-\-yellow
+Turn on the yellow light.
+.SH DESCRIPTION
+.LP
+The tools described here control a hardware status signal attached to the computer's USB port.
+This is a custom hardware device which employs a simple serial protocol and is not necessarily compatible
+with anything else.
+.LP
+The normal course of operations is to start up the status monitor daemon,
+.BR busylightd ,
+in the background. This will poll the user's Google calendar(s) to see when they are busy or free, and will
+continue to poll every hour to keep up with changing schedules throughout the day.
+.LP
+The daemon also monitors the state of a video conferencing meeting such as Zoom, to arrange a set of signals
+to anyone in visual range of the light, such as:
+.RS
+.TP 15
+green
+Currently free, and able to be approached/interrupted at will.
+.TP
+yellow
+Marked busy on a calendar, and thus may be working on something less amenable to interruption.
+.TP
+red
+Actually joined a conference call via Zoom, etc., so should not be interrupted (and possibly on-camera so anyone
+who comes in camera range may be visible to meeting participants).
+.TP
+flashing red
+In a conference call and the microphone is open, so any nearby sounds may be heard by all meeting participants.
+.RE
+.LP
+The actual monitoring of video meetings and microphone statuses is assumed to be done by some other automation
+which signals the daemon by sending signals to its process or running the
+.B busylight
+CLI tool. The author uses a hammerspoon script to accomplish this.
+.LP
+See the SIGNALS section below for a description of how sending signals to the daemon affect its operation.
+The
+.B busylight
+CLI program is simply a convenient way to inform the daemon of a status change. It locates the daemon process and sends
+signal(s) to it according to the command-line flags passed to it.
+.LP
+When the daemon starts, it flashes the blue light twice. When exiting, it flashes the red light twice
+and then turns the light off completely.
+.LP
+The
+.B upcoming
+program polls the Google calendars and displays to standard output the busy/free time ranges for the next
+8 hours.
+.LP
+Finally, the
+.B busylight-standalone
+program provides a way to test the light hardware without the daemon running. It opens the port directly
+and sends hardware commands to set the light displays as desired.
+.SH CONFIGURATION
+.LP
+These tools require a few files to be placed in the user's
+.B ~/.busylight
+directory. The overall tool configuration will be in a file called
+.B config.json
+in that directory.
+.LP
+This file provides all of the configuration parameters needed for the ongoing operation of the system.
+As the name implies, it is in JSON format, as a single object with the following fields:
+.TP
+.B Calendars
+This is a list of calendar IDs as provided by Google. The string
+.B "\[dq]primary\[dq]"
+may be used to refer to the user's primary calendar.
+.TP
+.B "TokenFile"
+The name of a file in which the program can cache authentication tokens to allow it to continue
+polling Google calendars. This should be a filename in the 
+.B .busylight
+directory with restricted permissions to avoid unauthorized viewing.
+.TP
+.B "CredentialFile"
+The name of a JSON file containing the API access credentials obtained from Google.
+.TP
+.B "LogFile"
+The name of a file into which 
+.B busylightd
+should record a log of its activities.
+.TP
+.B "PidFile"
+The name of the file
+.B busylightd
+should use to indicate its PID while running.
+.TP
+.B "Device"
+The system device name of the busylight signal hardware.
+.TP
+.B "BaudRate"
+The speed the hardware expects to be used to communicate with it.
+.LP
+An example configuration file would look like this:
+.RS
+.nf
+.na
+{
+    "Calendars": [ "primary", "mycustomcalendar@group.calendar.google.com" ],
+    "TokenFile": "/Users/MYNAME/.busylight/auth.json",
+    "CredentialFile": "/Users/MYNAME/.busylight/credentials.json",
+    "LogFile": "/Users/MYNAME/.busylight/busylightd.log",
+    "PidFile": "/Users/MYNAME/.busylight/busylightd.pid",
+    "Device":  "/dev/tty.usbmodem2101",
+    "BaudRate": 9600
+}
+.ad
+.fi
+.RE
+.SH AUTHENTICATING
+.LP
+In order to use the daemon to query Google calendar busy/free times, you first need to obtain an API key from Google.
+This will go in your
+.B ~/.busylight/credentials.json
+file (or whatever you named it in
+.BR ~/.busylight/config.json ).
+An example of this file is:
+.RS
+.nf
+.na
+{
+   "installed" : {
+      "client_id": "...",
+      "project_id": "...",
+      "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+      "token_uri": "https://oauth2.googleapis.com/token",
+      "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+      "client_secret":"...",
+      "redirect_uris": ["urn:ietf:wg:oauth:2.0:oob","http://localhost"]
+   }
+}
+.ad
+.fi
+.RE
+.LP
+Next, you will need to manually authenticate to Google once before the daemon can continue
+to poll the calendar API on its own. To do this, run the
+.B upcoming
+program. If you already have valid access tokens cached, it will simply report your busy/free
+times for the next 8 hours. Otherwise, it will print a lengthy URL on its standard output and wait
+for your response.
+.LP
+Copy that URL into a web browser. This will take you to Google where it will ask you to log in to
+the Google account whose calendars you wish to have monitored. You will also be asked if you are
+sure you want to give permissions to the app to have acceess to all of your calendars. If you agree,
+Google will give you an access token string.
+.LP
+Copy that string and paste it into the terminal where you are running
+.B upcoming
+so it is sent to 
+.BR upcoming 's
+standard input and press the return key.
+.LP
+This will authorize the client to access the calendar API, so
+.B upcoming
+will then print out its report of your upcoming appointment times. But in doing so it will also
+have cached your authentication token in the 
+.B ~/.busylight/auth.json
+file (or whatever you named it in
+.BR config.json ),
+so the programs documented here may freely poll the calendar service using that token.
+.LP
+If the busylight tools suddenly stop being able to access the calendar, simply delete the
+.B auth.json
+file and repeat this process to get a new token cached.
+.SS "Security Implications"
+.LP
+Protect the data in the
+.B auth.json
+file carefully. Any program with access to that data will have full rights to view and modify your Google calendars.
+.LP
+When you no longer wish to authorize these tools to access your calendars, you may go into your Google
+account settings on Google's website to revoke that authorization.
+.SH SIGNALS
+.LP
+The 
+.B busylightd
+daemon responds to the following signals:
+.TP
+.B HUP
+The video conference call is over. The daemon changes the light signal to reflect the user's
+busy/free status as understood from the last poll of the Google calendars.
+.TP
+.B INFO
+The daemon will immediately poll the calendar API instead of waiting for the next scheduled poll time.
+This is useful if a last-minute change was made to the calendar. This does not otherwise alter the
+periodic polling schedule (e.g., if the daemon is polling at 5 minutes past each hour, and this signal
+is received at 3:45, the next poll will still take place at 4:05).
+.TP
+.B INT
+Upon receipt of this signal, the daemon gracefully shuts down and terminates.
+.TP
+.B USR1
+The user is in a video conference with the microphone muted. The light signal is changed to reflect this.
+.TP
+.B USR2
+The user is in a video conference with the microphone open. The light signal is changed to reflect this.
+.TP
+.B WINCH
+Toggle whether the daemon is active or not. This is usually used to mark the start and end of the workday. When active,
+the daemon performs all of the functions documented here, polling the Google calendar hourly to pick up any changes
+to the schedule. When inactive, the light signal is shut off completely and the daemon stops polling the calendar service.
+Upon startup or resuming from inactive state, the daemon will immediately poll the calendar service, and will then
+poll again an hour after that, and every hour thereafter.
+.SH AUTHOR
+.LP
+Steve Willoughby 
+.I "<steve@alchemy.com>"
+.LP
+
+.SH BUGS
+.LP
+The
+.B busylight-standalone
+program is not intended for production use and thus still has some needed refactoring. In particular, the
+device port is hardcoded into it rather than using a configuration file as the other tools do.

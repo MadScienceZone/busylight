@@ -17,7 +17,6 @@ func main() {
 	var redred = flag.Bool("redred", false, "flash both reds alternately")
 	var redblue = flag.Bool("redblue", false, "flash red and blue alternately")
 	var off = flag.Bool("off", false, "turn off lights")
-	var calendar = flag.Bool("calendar", false, "set to calendar busy/free state")
 	var list = flag.Bool("list", false, "list port names")
 	flag.Parse()
 
@@ -41,34 +40,22 @@ func main() {
 	switch {
 		case *red1:
 			_, err = port.Write([]byte("R"))
-			break;
 		case *red2:
 			_, err = port.Write([]byte("2"))
-			break;
 		case *reds:
 			_, err = port.Write([]byte("!"))
-			break;
 		case *green:
 			_, err = port.Write([]byte("G"))
-			break;
 		case *blue:
 			_, err = port.Write([]byte("B"))
-			break;
 		case *yellow:
 			_, err = port.Write([]byte("Y"))
-			break;
 		case *redred:
 			_, err = port.Write([]byte("#"))
-			break;
 		case *redblue:
 			_, err = port.Write([]byte("%"))
-			break;
 		case *off:
 			_, err = port.Write([]byte("X"))
-			break;
-		case *calendar:
-			log.Fatalf("--calendar not implemented")
-			break;
 	}
 	if err != nil { panic(err) }
 }
