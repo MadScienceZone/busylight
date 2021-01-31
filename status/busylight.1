@@ -44,6 +44,9 @@ Tell the daemon that we are in a Zoom call with the microphone open.
 Force the daemon to re-poll the calendar service to get updates to the schedule rather than waiting for the
 next periodic poll time.
 .TP
+.B \-\-urgent
+Toggle flashing an urgent-status indication.
+.TP
 .B \-\-zzz
 Toggle the active state of the daemon. If it was active, it turns off the signal light and stops polling the calendar service.
 Otherwise, it resumes active state, polls the calendar service and updates the signal light appropriately.
@@ -111,6 +114,9 @@ who comes in camera range may be visible to meeting participants).
 .TP
 flashing red
 In a conference call and the microphone is open, so any nearby sounds may be heard by all meeting participants.
+.TP
+flashing red/blue
+Indicate an urgent need for help.
 .RE
 .LP
 The actual monitoring of video meetings and microphone statuses is assumed to be done by some other automation
@@ -262,7 +268,7 @@ account settings on Google's website to revoke that authorization.
 The 
 .B busylightd
 daemon responds to the following signals:
-.TP 9
+.TP 10
 .B HUP
 The video conference call is over. The daemon changes the light signal to reflect the user's
 busy/free status as understood from the last poll of the Google calendars.
@@ -275,6 +281,10 @@ is received at 3:45, the next poll will still take place at 4:05).
 .TP
 .B INT
 Upon receipt of this signal, the daemon gracefully shuts down and terminates.
+.TP
+.B VTALRM
+Toggles urgent indicator status. Initially it makes the light signal display an urgent flashing pattern.
+When received again, the daemon resumes normal display.
 .TP
 .B USR1
 The user is in a video conference with the microphone muted. The light signal is changed to reflect this.

@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"os/user"
@@ -9,11 +10,10 @@ import (
 	"syscall"
 	"path/filepath"
 	"strings"
-	"os"
 )
 
-func fatal(fmt string, a ...interface{}) {
-	fmt.Printf(fmt, a...)
+func fatal(format string, a ...interface{}) {
+	fmt.Printf(format, a...)
 	os.Exit(1)
 }
 
@@ -24,6 +24,7 @@ func main() {
 	var Fzzz = flag.Bool("zzz", false, "toggle active/inactive status")
 	var Fkill = flag.Bool("kill", false, "terminate busylight service")
 	var Freload = flag.Bool("reload", false, "reload calendar data")
+	var Furgent = flag.Bool("urgent", false, "toggle urgent condition indicator")
 	flag.Parse()
 
 	thisUser, err := user.Current()
@@ -38,6 +39,7 @@ func main() {
 	process, err := os.FindProcess(pid)
 	if err != nil { fatal("Can't find daemon process: %v\n", err) }
 
+	if *Furgent { process.Signal(syscall.SIGVTALRM)   }
 	if *Fmute   { process.Signal(syscall.SIGUSR1)  }
 	if *Fopen   { process.Signal(syscall.SIGUSR2)  }
 	if *Fcal    { process.Signal(syscall.SIGHUP)   }

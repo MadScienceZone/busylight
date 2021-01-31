@@ -327,7 +327,7 @@ func main() {
 	// Listen for incoming signals from outside
 	//
 	req := make(chan os.Signal, 5)
-	signal.Notify(req, syscall.SIGHUP, syscall.SIGUSR1, syscall.SIGUSR2, syscall.SIGWINCH, syscall.SIGINFO, syscall.SIGINT)
+	signal.Notify(req, syscall.SIGHUP, syscall.SIGUSR1, syscall.SIGUSR2, syscall.SIGWINCH, syscall.SIGINFO, syscall.SIGINT, syscall.SIGVTALRM)
 
 	//
 	// Signal that we're online and ready
@@ -349,10 +349,10 @@ func main() {
 		config.logger.Printf("Error updating busy/free times from calendar: %v", err)
 	}
 
-	isZoomNow := false
+	isZoomNow   := false
 	isZoomMuted := false
 	isActiveNow := true
-
+	isUrgent    := false
 
 	//
 	// Set the current state and schedule for next transition
@@ -402,6 +402,10 @@ eventLoop:
 
 			case externalSignal := <-req:
 				switch externalSignal {
+					case syscall.SIGVTALRM:
+						isUrgent = !isUrgent
+						config.logger.Printf("Toggle URGENT indicator to %v", isUrgent)
+
 					case syscall.SIGHUP:
 						config.logger.Printf("ZOOM: Call ended")
 						isZoomNow = false
@@ -460,7 +464,9 @@ eventLoop:
 
 		// Set signal to current state
 		if isActiveNow {
-			if isZoomNow {
+			if isUrgent {
+				port.Write([]byte("%"))
+			} else if isZoomNow {
 				if isZoomMuted {
 					port.Write([]byte("R"))
 					config.logger.Printf("Signal ZOOM MUTED")

@@ -29,7 +29,7 @@ func main() {
 		return
 	}
 
-	port, err := serial.Open("/dev/tty.usbmodem2101", &serial.Mode{
+	port, err := serial.Open("/dev/tty.usbmodem5301", &serial.Mode{
 		BaudRate: 9600,
 	})
 	if err != nil {
