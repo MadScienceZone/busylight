@@ -12,7 +12,7 @@ The light is placed in a convenient and visible location, and displays lights to
 * Flashing red: in a meeting, and my microphone is unmuted
 
 ## Hardware
-For the light itself, I grabbed a spare Arduino Micro Pro board, a ULN2003A darlington transistor array chip, and a bunch of LEDs and resistors and threw them together.
+For the light itself, I grabbed a spare Arduino Pro Micro board, a ULN2003A darlington transistor array chip, and a bunch of LEDs and resistors and threw them together.
 I chose resistor values to get a suitable brightness from the LEDs (which varied by color and the voltage ratings of the LEDs; your mileage may vary) without overloading
 the USB supply current limits.
 
