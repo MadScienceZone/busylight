@@ -1,5 +1,17 @@
-// Check for upcoming meetings in Google calendar
+//
+// vi:set ai sm nu ts=4 sw=4:
+//
 // Steve Willoughby <steve@alchemy.com>
+// License: BSD 3-Clause open-source license
+//
+// Check for upcoming meetings in Google calendar.
+// Originally this was part of my early experiments to
+// learn how to query the Google API but may also be
+// useful as a manual debugging aid.
+//
+// This tool is also useful for manually obtaining a Google
+// API authentication token for the other tools to then
+// continue using.
 //
 
 package main

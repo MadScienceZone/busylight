@@ -1,3 +1,15 @@
+//
+// vi:set ai sm nu ts=4 sw=4:
+//
+// This is just a standalone tool I wrote while
+// experimenting with controlling the hardware.
+// It may be of use while building your own light
+// hardware but isn't intended to be part of the
+// "production" code.
+//
+// Steve Willoughby <steve@alchemy.com>
+// License: BSD 3-Clause open-source license
+//
 package main
 
 import (

@@ -1,3 +1,20 @@
+//
+// vi:set ai sm nu ts=4 sw=4:
+//
+// CLI tool to control long-running daemon busylightd
+// by sending it these signals:
+//
+//    USR1   - in zoom, muted
+//    USR2   - in zoom, unmuted
+//    HUP    - out of zoom
+//    INFO   - force refresh from calendar now
+//    VTALRM - toggle urgent indicator
+//    WINCH  - toggle idle/working state
+//
+// Steve Willoughby <steve@alchemy.com>
+// License: BSD 3-Clause open-source license
+//
+
 package main
 
 import (

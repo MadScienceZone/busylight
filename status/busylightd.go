@@ -1,4 +1,5 @@
 //
+// vi:set ai sm nu ts=4 sw=4:
 //
 // Long-running daemon to control the busylight.
 // Automatically polls Google calendar busy/free times
@@ -13,6 +14,7 @@
 //    WINCH  - toggle idle/working state
 //
 // Steve Willoughby <steve@alchemy.com>
+// License: BSD 3-Clause open-source license
 //
 
 package main
@@ -62,18 +64,12 @@ func getConfigFromFile(filename string, data *ConfigData) error {
 	return nil
 }
 
-func getClient(config *oauth2.Config, tokFile string) *http.Client {
+func getClient(config *oauth2.Config, tokFile string) (*http.Client, error) {
 	tok, err := tokenFromFile(tokFile)
 	if err != nil {
-		tok = getTokenFromWeb(config)
-		saveToken(tokFile, tok)
+		return nil, err
 	}
-	return config.Client(context.Background(), tok)
-}
-
-func getTokenFromWeb(config *oauth2.Config) *oauth2.Token {
-	log.Printf("Unable to use cached credentials. Use stand-alone tool to manually obtain Google calendar authorization.")
-	return nil
+	return config.Client(context.Background(), tok), nil
 }
 
 func tokenFromFile(file string) (*oauth2.Token, error) {
@@ -85,18 +81,6 @@ func tokenFromFile(file string) (*oauth2.Token, error) {
 	tok := &oauth2.Token{}
 	err = json.NewDecoder(f).Decode(tok)
 	return tok, err
-}
-
-// This should be refactored out if we're not getting new authorizations now
-func saveToken(path string, token *oauth2.Token) {
-	log.Printf("Saving credential file to: %s\n", path)
-	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
-	if err != nil {
-		log.Printf("Unable to cache oauth token: %v", err)
-	} else {
-		defer f.Close()
-		json.NewEncoder(f).Encode(token)
-	}
 }
 
 type BusyPeriod struct{
@@ -172,7 +156,9 @@ func (cal *CalendarAvailability) Refresh(config *ConfigData) error {
 	googleConfig, err := google.ConfigFromJSON(config.googleConfig, calendar.CalendarReadonlyScope)
 	if err != nil { return err }
 
-	client := getClient(googleConfig, config.TokenFile)
+	client, err := getClient(googleConfig, config.TokenFile)
+	if err != nil { return fmt.Errorf("Unable to query calendar: %v", err) }
+
 	srv, err := calendar.New(client)
 	if err != nil { return err }
 
@@ -381,9 +367,68 @@ func main() {
 eventLoop:
 	for {
 		select {
-			case _ = <-refreshTimer.C:
+		case _ = <-refreshTimer.C:
+			if isActiveNow {
+				config.logger.Printf("Periodic calendar refresh starts")
+				err = busyTimes.Refresh(&config)
+				if err != nil {
+					config.logger.Printf("Reload failed: %v", err)
+				}
+				isBusyTimeNow = busyTimes.ScheduledBusyNow(&config)
+				transitionTimer.Stop()
+				transitionTimer.Reset(time.Until(busyTimes.NextTransitionTime(&config)))
+			} else {
+				config.logger.Printf("Ignoring scheduled request to refresh calendar since service isn't active now.")
+				refreshTimer.Stop()
+			}
+
+		case _ = <-transitionTimer.C:
+			config.logger.Printf("Scheduled status change")
+			isBusyTimeNow = busyTimes.ScheduledBusyNow(&config)
+			transitionTimer.Reset(time.Until(busyTimes.NextTransitionTime(&config)))
+
+		case externalSignal := <-req:
+			switch externalSignal {
+			case syscall.SIGVTALRM:
+				isUrgent = !isUrgent
+				config.logger.Printf("Toggle URGENT indicator to %v", isUrgent)
+
+			case syscall.SIGHUP:
+				config.logger.Printf("ZOOM: Call ended")
+				isZoomNow = false
+
+			case syscall.SIGUSR1:
+				config.logger.Printf("ZOOM: Muted")
+				isZoomNow = true
+				isZoomMuted = true
+
+			case syscall.SIGUSR2:
+				config.logger.Printf("ZOOM: Unmuted")
+				isZoomNow = true
+				isZoomMuted = false
+
+			case syscall.SIGWINCH:
+				config.logger.Printf("Toggle active state")
+				isActiveNow = !isActiveNow
 				if isActiveNow {
-					config.logger.Printf("Periodic calendar refresh starts")
+					config.logger.Printf("Activating service; getting fresh calendar data")
+					err = busyTimes.Refresh(&config)
+					if err != nil {
+						config.logger.Printf("Error updating busy/free times from calendar: %v", err)
+					}
+					config.logger.Printf("Resetting timers")
+					refreshTimer.Reset(1 * time.Hour)
+					isBusyTimeNow = busyTimes.ScheduledBusyNow(&config)
+					transitionTimer.Reset(time.Until(busyTimes.NextTransitionTime(&config)))
+				} else {
+					config.logger.Printf("Stopping timers")
+					refreshTimer.Stop()
+					transitionTimer.Stop()
+				}
+
+			case syscall.SIGINFO:
+				if isActiveNow {
+					config.logger.Printf("Reloading calendar status by request")
 					err = busyTimes.Refresh(&config)
 					if err != nil {
 						config.logger.Printf("Reload failed: %v", err)
@@ -392,75 +437,16 @@ eventLoop:
 					transitionTimer.Stop()
 					transitionTimer.Reset(time.Until(busyTimes.NextTransitionTime(&config)))
 				} else {
-					config.logger.Printf("Ignoring scheduled request to refresh calendar since service isn't active now.")
-					refreshTimer.Stop()
+					config.logger.Printf("Ignoring reload request since service isn't active now.")
 				}
 
-			case _ = <-transitionTimer.C:
-				config.logger.Printf("Scheduled status change")
-				isBusyTimeNow = busyTimes.ScheduledBusyNow(&config)
-				transitionTimer.Reset(time.Until(busyTimes.NextTransitionTime(&config)))
+			case syscall.SIGINT:
+				config.logger.Printf("Received interrupt signal")
+				break eventLoop
 
-			case externalSignal := <-req:
-				switch externalSignal {
-					case syscall.SIGVTALRM:
-						isUrgent = !isUrgent
-						config.logger.Printf("Toggle URGENT indicator to %v", isUrgent)
-
-					case syscall.SIGHUP:
-						config.logger.Printf("ZOOM: Call ended")
-						isZoomNow = false
-
-					case syscall.SIGUSR1:
-						config.logger.Printf("ZOOM: Muted")
-						isZoomNow = true
-						isZoomMuted = true
-
-					case syscall.SIGUSR2:
-						config.logger.Printf("ZOOM: Unmuted")
-						isZoomNow = true
-						isZoomMuted = false
-
-					case syscall.SIGWINCH:
-						config.logger.Printf("Toggle active state")
-						isActiveNow = !isActiveNow
-						if isActiveNow {
-							config.logger.Printf("Activating service; getting fresh calendar data")
-							err = busyTimes.Refresh(&config)
-							if err != nil {
-								config.logger.Printf("Error updating busy/free times from calendar: %v", err)
-							}
-							config.logger.Printf("Resetting timers")
-							refreshTimer.Reset(1 * time.Hour)
-							isBusyTimeNow = busyTimes.ScheduledBusyNow(&config)
-							transitionTimer.Reset(time.Until(busyTimes.NextTransitionTime(&config)))
-						} else {
-							config.logger.Printf("Stopping timers")
-							refreshTimer.Stop()
-							transitionTimer.Stop()
-						}
-
-					case syscall.SIGINFO:
-						if isActiveNow {
-							config.logger.Printf("Reloading calendar status by request")
-							err = busyTimes.Refresh(&config)
-							if err != nil {
-								config.logger.Printf("Reload failed: %v", err)
-							}
-							isBusyTimeNow = busyTimes.ScheduledBusyNow(&config)
-							transitionTimer.Stop()
-							transitionTimer.Reset(time.Until(busyTimes.NextTransitionTime(&config)))
-						} else {
-							config.logger.Printf("Ignoring reload request since service isn't active now.")
-						}
-
-					case syscall.SIGINT:
-						config.logger.Printf("Received interrupt signal")
-						break eventLoop
-
-					default:
-						config.logger.Printf("Received unexpeced signal %v (ignored)", externalSignal)
-				}
+			default:
+				config.logger.Printf("Received unexpeced signal %v (ignored)", externalSignal)
+			}
 		}
 
 		// Set signal to current state
@@ -499,113 +485,3 @@ eventLoop:
 	time.Sleep(100 * time.Millisecond)
 	port.Write([]byte("X"))
 }
-
-/*
-	googleConfig, err := google.ConfigFromJSON(b, calendar.CalendarReadonlyScope)
-	if err != nil {
-		log.Fatalf("Unable to parse client secret file to config: %v", err)
-	}
-	client := getClient(googleConfig, config.TokenFile)
-
-	srv, err := calendar.New(client)
-	if err != nil {
-		log.Fatalf("Unable to retrieve Calendar client: %v", err)
-	}
-
-	// time parameters for query
-	now := time.Now().Format(time.RFC3339)
-	eod := time.Now().Add(time.Hour * 8).Format(time.RFC3339)
-
-	var query calendar.FreeBusyRequest
-	query.TimeMax = eod
-	query.TimeMin = now
-	for _, calId := range config.Calendars {
-		query.Items = append(query.Items, &calendar.FreeBusyRequestItem{Id: calId})
-	}
-
-	//
-	// for now, just report busy periods
-	//
-	var errors int
-	freelist, err := srv.Freebusy.Query(&query).Do()
-	if err != nil {
-		log.Fatalf("Error reading calendar: %v", err)
-		errors++
-	}
-	for calId, calData := range freelist.Calendars {
-		log.Printf("<%v>", calId)
-		for _, e := range calData.Errors {
-			log.Printf("   ERROR %v", e)
-		}
-		for _, busy := range calData.Busy {
-			log.Printf("   %v - %v", busy.Start, busy.End)
-		}
-	}
-	if errors > 0 {
-		log.Fatalf("Errors encountered: %d", errors)
-	}
-}
-
-
-
-
-
-
-
-
-
-
-
-import (
-	"flag"
-	"fmt"
-	"log"
-)
-
-func main() {
-
-	if *list {
-		names, err := serial.GetPortsList()
-		if err != nil { panic(err) }
-		for _, name := range names {
-			fmt.Println(name)
-		}
-		return
-	}
-
-
-	switch {
-		case *red1:
-			_, err = port.Write([]byte("R"))
-			break;
-		case *red2:
-			_, err = port.Write([]byte("2"))
-			break;
-		case *reds:
-			_, err = port.Write([]byte("!"))
-			break;
-		case *green:
-			_, err = port.Write([]byte("G"))
-			break;
-		case *blue:
-			_, err = port.Write([]byte("B"))
-			break;
-		case *yellow:
-			_, err = port.Write([]byte("Y"))
-			break;
-		case *redred:
-			_, err = port.Write([]byte("#"))
-			break;
-		case *redblue:
-			_, err = port.Write([]byte("%"))
-			break;
-		case *off:
-			_, err = port.Write([]byte("X"))
-			break;
-		case *calendar:
-			log.Fatalf("--calendar not implemented")
-			break;
-	}
-	if err != nil { panic(err) }
-}
-*/
