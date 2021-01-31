@@ -1,4 +1,4 @@
-.TH BUSYLIGHT 1 1.0 26-Jan-2021 "User Commands"
+.TH BUSYLIGHT 1 1.1 31-Jan-2021 "User Commands"
 .SH NAME
 busylight \- display busy/free status to passers-by
 .SH SYNOPSIS
@@ -12,6 +12,13 @@ busylight \- display busy/free status to passers-by
 .LP
 .B upcoming
 .SH OPTIONS
+.LP
+Each command that accepts command-line options is described below. Note that option names
+may be preceded by one or two hyphens (e.g., either 
+.B \-\-mute
+or
+.BR \-mute ),
+but options may not be abbreviated or combined.
 .SS busylight
 .LP
 The
@@ -101,7 +108,7 @@ continue to poll every hour to keep up with changing schedules throughout the da
 The daemon also monitors the state of a video conferencing meeting such as Zoom, to arrange a set of signals
 to anyone in visual range of the light, such as:
 .RS
-.TP 15
+.TP 18
 green
 Currently free, and able to be approached/interrupted at will.
 .TP
@@ -116,7 +123,7 @@ flashing red
 In a conference call and the microphone is open, so any nearby sounds may be heard by all meeting participants.
 .TP
 flashing red/blue
-Indicate an urgent need for help.
+Indicates an urgent need for help.
 .RE
 .LP
 The actual monitoring of video meetings and microphone statuses is assumed to be done by some other automation
@@ -302,6 +309,12 @@ poll again an hour after that, and every hour thereafter.
 .LP
 Steve Willoughby 
 .I "<steve@alchemy.com>"
+.SH PORTABILITY
+.LP
+The author's intended use for the daemon was on a Macintosh osx system, and the choice of
+signals was based on their availability on that platform. Other operating systems may not
+support all of those signals, so porting to those systems may involve a different selection
+of signals.
 .SH BUGS
 .LP
 The
