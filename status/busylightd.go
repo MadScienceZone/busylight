@@ -5,11 +5,12 @@
 // and can be controlled via signals from a Zoom meeting
 // monitoring script:
 //
-//    USR1 - in zoom, muted
-//    USR2 - in zoom, unmuted
-//    HUP  - out of zoom
-//    INFO - force refresh from calendar now
-//    WINCH- toggle idle/working state
+//    USR1   - in zoom, muted
+//    USR2   - in zoom, unmuted
+//    HUP    - out of zoom
+//    INFO   - force refresh from calendar now
+//    VTALRM - toggle urgent indicator
+//    WINCH  - toggle idle/working state
 //
 // Steve Willoughby <steve@alchemy.com>
 //
