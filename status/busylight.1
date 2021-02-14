@@ -1,4 +1,4 @@
-.TH BUSYLIGHT 1 1.1 31-Jan-2021 "User Commands"
+.TH BUSYLIGHT 1 1.2 14-Feb-2021 "User Commands"
 .SH NAME
 busylight \- display busy/free status to passers-by
 .SH SYNOPSIS
@@ -161,9 +161,24 @@ This file provides all of the configuration parameters needed for the ongoing op
 As the name implies, it is in JSON format, as a single object with the following fields:
 .TP 4
 .B Calendars
-This is a list of calendar IDs as provided by Google. The string
+This is a map of Google calendar IDs to objects which describe those calendars.
+The data associated with each key is an object with the following fields:
+.RS
+.TP 4
+.B Title
+An arbitrary name for the calendar that will explain its purpose.
+.TP
+.B IgnoreAllDayEvents
+A boolean value; if true,
+.B busylightd
+will ignore any busy periods for that calendar which span the entire
+8-hour period being queried.
+Defaults to false.
+.LP
+The key
 .B "\[dq]primary\[dq]"
-may be used to refer to the user's primary calendar.
+may be used in place of the Google ID to refer to the user's primary calendar.
+.RE
 .TP
 .B "TokenFile"
 The name of a file in which the program can cache authentication tokens to allow it to continue
@@ -195,7 +210,15 @@ An example configuration file would look like this:
 .nf
 .na
 {
-    "Calendars": [ "primary", "mycustomcalendar@group.calendar.google.com" ],
+    "Calendars": { 
+        "primary": {
+            "Title": "My primary calendar"
+        },
+        "mycustomcalendar@group.calendar.google.com": {
+            "Title": "Group calendar",
+            "IgnoreAllDayEvents": true
+        }
+    },
     "TokenFile": "/Users/MYNAME/.busylight/auth.json",
     "CredentialFile": "/Users/MYNAME/.busylight/credentials.json",
     "LogFile": "/Users/MYNAME/.busylight/busylightd.log",

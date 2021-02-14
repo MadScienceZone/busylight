@@ -38,3 +38,10 @@ separate API key for yours.
 There's a *busylight(1)* manual page included which explains the setup and operation of the software.
 
 A schematic of how I wired up the hardware is also included, although it's fairly trivial, and can be adjusted to suit your needs.
+
+# Version 1.2 Notes
+The 1.2 release includes the ability to ignore long-running appointments on selected calendars, to avoid
+signalling that the user is "busy" because of an all-day event on a group calendar.
+
+This made it necessary to change the `config.json` file's list of calendars to be monitored. Users of the 1.1 version will need to 
+update this configuration file after upgrading to 1.2.

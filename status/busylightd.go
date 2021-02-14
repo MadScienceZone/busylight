@@ -39,8 +39,13 @@ import (
 	"syscall"
 )
 
+type CalendarConfigData struct {
+	Title              string
+	IgnoreAllDayEvents bool
+}
+
 type ConfigData struct {
-	Calendars      []string
+	Calendars      map[string]CalendarConfigData
 	TokenFile      string
 	CredentialFile string
 	LogFile        string
@@ -163,30 +168,54 @@ func (cal *CalendarAvailability) Refresh(config *ConfigData) error {
 	if err != nil { return err }
 
 	var query calendar.FreeBusyRequest
-	query.TimeMax = time.Now().Add(time.Hour * 8).Format(time.RFC3339)
-	query.TimeMin = time.Now().Format(time.RFC3339)
-	for _, calId := range config.Calendars {
-		query.Items = append(query.Items, &calendar.FreeBusyRequestItem{Id: calId})
+	queryStartTime := time.Now()
+	queryEndTime := queryStartTime.Add(time.Hour * 8)
+	query.TimeMin = queryStartTime.Format(time.RFC3339)
+	query.TimeMax = queryEndTime.Format(time.RFC3339)
+	for cId := range config.Calendars {
+		query.Items = append(query.Items, &calendar.FreeBusyRequestItem{Id: cId})
 	}
 	freelist, err := srv.Freebusy.Query(&query).Do()
 	if err != nil { return err }
 
 	var rawbusylist []BusyPeriod
 	for calId, calData := range freelist.Calendars {
+		calInfo, isKnown := config.Calendars[calId]
+		if !isKnown {
+			config.logger.Printf("WARNING: Calendar <%s> in API results does not match any in our configuration!", calId)
+			calInfo = CalendarConfigData{
+				Title: fmt.Sprintf("UNKNOWN<%v>", calId),
+			}
+		}
+
 		for _, e := range calData.Errors {
-			config.logger.Printf("ERROR: Calendar \"%s\": %v", calId, e)
+			config.logger.Printf("ERROR: Calendar \"%s\": %v", calInfo.Title, e)
 		}
 		for _, busy := range calData.Busy {
-			config.logger.Printf("Calendar \"%s\": busy %v - %v", calId, busy.Start, busy.End)
 			startTime, err := time.Parse(time.RFC3339, busy.Start)
 			if err != nil {
-				config.logger.Printf("ERROR: Unable to parse start time \"%v\": %v", busy.Start, err)
+				config.logger.Printf("ERROR: %s: Unable to parse start time \"%v\": %v", calInfo.Title, busy.Start, err)
 				continue
 			}
 			endTime, err := time.Parse(time.RFC3339, busy.End)
 			if err != nil {
-				config.logger.Printf("ERROR: Unable to parse end time \"%v\": %v", busy.End, err)
+				config.logger.Printf("ERROR: %s: Unable to parse end time \"%v\": %v", calInfo.Title, busy.End, err)
 				continue
+			}
+			config.logger.Printf("Calendar \"%s\": busy %v - %v", calInfo.Title, startTime.Local(), endTime.Local())
+			if calInfo.IgnoreAllDayEvents {
+				// This calendar is on our ignore list for all-day bookings.
+				// There isn't any really great way to identify all-day events
+				// since all we see is the aggregate busy time ranges.
+				// So we'll compromise by assuming if the calendar is marked busy for the
+				// entire query period, it's something we should ignore for the given
+				// calendar. 
+				// It's far from perfect but it gets us closer to something useful.
+				if startTime.Before(queryStartTime.Add(5 * time.Second)) &&
+				   endTime.After(queryEndTime.Add(-5 * time.Second)) {
+					config.logger.Printf("Ignoring long-running event from %s", calInfo.Title)
+					continue
+				}
 			}
 			rawbusylist = append(rawbusylist, BusyPeriod{Start: startTime, End: endTime})
 		}
