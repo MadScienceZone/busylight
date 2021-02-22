@@ -1,4 +1,4 @@
-.TH BUSYLIGHT 1 1.2 14-Feb-2021 "User Commands"
+.TH BUSYLIGHT 1 1.3 17-Feb-2021 "User Commands"
 .SH NAME
 busylight \- display busy/free status to passers-by
 .SH SYNOPSIS
@@ -57,6 +57,12 @@ Toggle flashing an urgent-status indication.
 .B \-\-zzz
 Toggle the active state of the daemon. If it was active, it turns off the signal light and stops polling the calendar service.
 Otherwise, it resumes active state, polls the calendar service and updates the signal light appropriately.
+.RS
+.LP
+See the description of the daemon's handling of the
+.B SIGWINCH
+signal for more details.
+.RE
 .SS busylight-standalone
 .LP
 The
@@ -328,6 +334,18 @@ the daemon performs all of the functions documented here, polling the Google cal
 to the schedule. When inactive, the light signal is shut off completely and the daemon stops polling the calendar service.
 Upon startup or resuming from inactive state, the daemon will immediately poll the calendar service, and will then
 poll again an hour after that, and every hour thereafter.
+.RS
+.LP
+When resuming active status after having been inactive, the daemon
+will reload the configuration file. This provides a convenient way to
+change configuration options by suspending operations and then resuming,
+without needing to completely restart the daemon. The PID and log files may
+not be changed without restarting the daemon completely. Also note that
+the API credentials for accessing Google calendars is not reloaded at
+this time. That also requires a full restart of the daemon process.
+.LP
+The serial port is closed while the daemon is in inactive state.
+.RE
 .SH AUTHOR
 .LP
 Steve Willoughby 

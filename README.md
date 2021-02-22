@@ -39,7 +39,20 @@ There's a *busylight(1)* manual page included which explains the setup and opera
 
 A schematic of how I wired up the hardware is also included, although it's fairly trivial, and can be adjusted to suit your needs.
 
-# Version 1.2 Notes
+# Release notes
+## Version 1.3
+The daemon now closes the serial port when put in inactive state and
+re-opens it when going active again. It also reloads its configuration
+file at that time, making it possible to change the serial device in case
+the system gave it a new dynamic device name during the time the daemon
+was sleeping.
+
+This also allows other configuration changes to be made  without restarting
+the daemon (just set it to inactive state and back to active again).
+
+Refactored some code to clean it up a little. 
+
+## Version 1.2
 The 1.2 release includes the ability to ignore long-running appointments on selected calendars, to avoid
 signalling that the user is "busy" because of an all-day event on a group calendar.
 

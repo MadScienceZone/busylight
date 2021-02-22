@@ -54,6 +54,33 @@ type ConfigData struct {
 	BaudRate       int
 	googleConfig   []byte
 	logger        *log.Logger
+	port           serial.Port
+	portOpen       bool
+}
+
+func lightSignal(config *ConfigData, color string, delay time.Duration) {
+	var colorCode = map[string]string {
+		"blue":     "B",
+		"green":    "G",
+		"off":      "X",
+		"red":      "R",
+		"red2":     "2",
+		"redflash": "#",
+		"urgent":   "%",
+		"yellow":   "Y",
+	}
+
+	if config.portOpen {
+		command, valid := colorCode[color]
+		if !valid {
+			config.logger.Printf("ERROR: Unable to send light signal \"%v\"; not defined.", color)
+			return
+		}
+		config.port.Write([]byte(command))
+		if delay > 0 {
+			time.Sleep(delay)
+		}
+	}
 }
 
 func getConfigFromFile(filename string, data *ConfigData) error {
@@ -277,6 +304,8 @@ func (cal *CalendarAvailability) Refresh(config *ConfigData) error {
 
 func setup(config *ConfigData) error {
 	var thisUser *user.User
+	previousLogFile := config.LogFile
+	previousPidFile := config.PidFile
 
 	thisUser, err := user.Current()
 	if err != nil {
@@ -288,30 +317,90 @@ func setup(config *ConfigData) error {
 		return fmt.Errorf("Unable to initialize: %v", err)
 	}
 
-	f, err := os.OpenFile(config.LogFile, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
-	if err != nil {
-		return fmt.Errorf("Unable to open logfile: %v", err)
-	}
-	config.logger = log.New(f, "busylightd: ", log.LstdFlags)
+	//
+	// If we're just re-reading the configuration, we will leave the
+	// existing logfile and pid file alone.
+	//
+	if config.logger == nil {
+		f, err := os.OpenFile(config.LogFile, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
+		if err != nil {
+			return fmt.Errorf("Unable to open logfile: %v", err)
+		}
+		config.logger = log.New(f, "busylightd: ", log.LstdFlags)
 
-	myPID := os.Getpid()
-	config.logger.Printf("busylightd started, PID=%v", myPID)
+		myPID := os.Getpid()
+		config.logger.Printf("busylightd started, PID=%v", myPID)
 
-	pidf, err := os.OpenFile(config.PidFile, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
-	if err != nil {
-		config.logger.Printf("ERROR creating PID file (is another busylightd running?): %v", err)
-		return err
-	}
-	pidf.WriteString(fmt.Sprintf("%d\n", myPID))
-	pidf.Close()
+		pidf, err := os.OpenFile(config.PidFile, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
+		if err != nil {
+			config.logger.Printf("ERROR creating PID file (is another busylightd running?): %v", err)
+			return err
+		}
+		pidf.WriteString(fmt.Sprintf("%d\n", myPID))
+		pidf.Close()
 
-	config.googleConfig, err = ioutil.ReadFile(config.CredentialFile)
-	if err != nil {
-		config.logger.Printf("Unable to read client secret file %v: %v", config.CredentialFile, err)
-		return fmt.Errorf("Unable to read client secret file %v: %v", config.CredentialFile, err)
+		config.googleConfig, err = ioutil.ReadFile(config.CredentialFile)
+		if err != nil {
+			config.logger.Printf("Unable to read client secret file %v: %v", config.CredentialFile, err)
+			return fmt.Errorf("Unable to read client secret file %v: %v", config.CredentialFile, err)
+		}
+	} else {
+		if previousPidFile != config.PidFile {
+			config.logger.Printf("WARNING: PID file changed from %v to %v on reload. This requires a full restart of the daemon. Ignoring the change for now.", previousPidFile, config.PidFile)
+		}
+		if previousLogFile != config.LogFile {
+			config.logger.Printf("WARNING: Log file changed from %v to %v on reload. This requires a full restart of the daemon. Ignoring the change for now.", previousLogFile, config.LogFile)
+		}
 	}
+
+	//
+	// Open the hardware port
+	//
+	if config.portOpen {
+		config.port.Close()
+		config.portOpen = false
+	}
+	config.port, err = serial.Open(config.Device, &serial.Mode{
+		BaudRate: config.BaudRate,
+	})
+	if err != nil {
+		shutdown(config)
+		config.logger.Fatalf("Can't open serial device %v: %v", config.Device, err)
+	}
+	config.portOpen = true
+	//
+	// Signal that we're online and ready
+	//
+	lightSignal(config, "blue", 100 * time.Millisecond)
+	lightSignal(config, "off",   50 * time.Millisecond)
+	lightSignal(config, "blue", 100 * time.Millisecond)
+	lightSignal(config, "off",    0)
 
 	return nil
+}
+
+//
+// reverse whatever setup() did
+//
+func closeDevice(config *ConfigData) {
+	if config.portOpen {
+		lightSignal(config, "red2", 100 * time.Millisecond)
+		lightSignal(config, "off",   50 * time.Millisecond)
+		lightSignal(config, "red2", 100 * time.Millisecond)
+		lightSignal(config, "off",    0)
+		config.logger.Printf("Closing serial port")
+		config.port.Close()
+		config.portOpen = false
+	}
+}
+
+func shutdown(config *ConfigData) {
+	closeDevice(config)
+	err := os.Remove(config.PidFile)
+	if err != nil {
+		config.logger.Printf("Error removing PID file: %v", err)
+	}
+	config.logger.Printf("busylightd shutting down")
 }
 
 func main() {
@@ -320,24 +409,7 @@ func main() {
 	if err := setup(&config); err != nil {
 		log.Fatalf("Unable to start daemon: %v", err)
 	}
-	defer func(){
-		err := os.Remove(config.PidFile)
-		if err != nil {
-			config.logger.Printf("Error removing PID file: %v", err)
-		}
-		config.logger.Printf("busylightd shutting down")
-	}()
-
-	//
-	// Open the hardware port
-	//
-	port, err := serial.Open(config.Device, &serial.Mode{
-		BaudRate: config.BaudRate,
-	})
-	if err != nil {
-		config.logger.Fatalf("Can't open serial device: %v", err)
-	}
-	defer port.Close()
+	defer shutdown(&config)
 
 	//
 	// Listen for incoming signals from outside
@@ -346,21 +418,10 @@ func main() {
 	signal.Notify(req, syscall.SIGHUP, syscall.SIGUSR1, syscall.SIGUSR2, syscall.SIGWINCH, syscall.SIGINFO, syscall.SIGINT, syscall.SIGVTALRM)
 
 	//
-	// Signal that we're online and ready
-	//
-	port.Write([]byte("B"))
-	time.Sleep(100 * time.Millisecond)
-	port.Write([]byte("X"))
-	time.Sleep(50 * time.Millisecond)
-	port.Write([]byte("B"))
-	time.Sleep(100 * time.Millisecond)
-	port.Write([]byte("X"))
-
-	//
 	// Get initial calendar download
 	//
 	var busyTimes CalendarAvailability
-	err = busyTimes.Refresh(&config)
+	err := busyTimes.Refresh(&config)
 	if err != nil {
 		config.logger.Printf("Error updating busy/free times from calendar: %v", err)
 	}
@@ -378,9 +439,9 @@ func main() {
 	transitionTimer := time.NewTimer(time.Until(nextTransitionTime))
 
 	if isBusyTimeNow {
-		port.Write([]byte("Y"))
+		lightSignal(&config, "yellow", 0)
 	} else {
-		port.Write([]byte("G"))
+		lightSignal(&config, "green", 0)
 	}
 
 	// We will keep a timer for refreshing the calendar and one for transitioning
@@ -440,6 +501,12 @@ eventLoop:
 				config.logger.Printf("Toggle active state")
 				isActiveNow = !isActiveNow
 				if isActiveNow {
+					config.logger.Printf("Activating service; re-loading configuration and opening serial port")
+					err = setup(&config)
+					if err != nil {
+						config.logger.Fatalf("Error loading configuration data. Unable to restart: %v", err)
+						return
+					}
 					config.logger.Printf("Activating service; getting fresh calendar data")
 					err = busyTimes.Refresh(&config)
 					if err != nil {
@@ -453,6 +520,8 @@ eventLoop:
 					config.logger.Printf("Stopping timers")
 					refreshTimer.Stop()
 					transitionTimer.Stop()
+					closeDevice(&config)
+					config.logger.Printf("Daemon in inactive state... zzz")
 				}
 
 			case syscall.SIGINFO:
@@ -481,36 +550,25 @@ eventLoop:
 		// Set signal to current state
 		if isActiveNow {
 			if isUrgent {
-				port.Write([]byte("%"))
+				lightSignal(&config, "urgent", 0)
 			} else if isZoomNow {
 				if isZoomMuted {
-					port.Write([]byte("R"))
+					lightSignal(&config, "red", 0)
 					config.logger.Printf("Signal ZOOM MUTED")
 				} else {
-					port.Write([]byte("#"))
+					lightSignal(&config, "redflash", 0)
 					config.logger.Printf("Signal ZOOM OPEN")
 				}
 			} else if isBusyTimeNow {
-				port.Write([]byte("Y"))
+				lightSignal(&config, "yellow", 0)
 				config.logger.Printf("Signal BUSY")
 			} else {
-				port.Write([]byte("G"))
+				lightSignal(&config, "green", 0)
 				config.logger.Printf("Signal FREE")
 			}
 		} else {
-			port.Write([]byte("X"))
+			lightSignal(&config, "off", 0)
 			config.logger.Printf("Signal off")
 		}
 	}
-
-	//
-	// Signal shutdown
-	//
-	port.Write([]byte("2"))
-	time.Sleep(100 * time.Millisecond)
-	port.Write([]byte("X"))
-	time.Sleep(50 * time.Millisecond)
-	port.Write([]byte("2"))
-	time.Sleep(100 * time.Millisecond)
-	port.Write([]byte("X"))
 }
