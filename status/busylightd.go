@@ -26,17 +26,18 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"time"
+	"os/signal"
 	"os/user"
 	"path/filepath"
 	"sort"
+	"syscall"
+	"time"
+
+	"go.bug.st/serial"
 	"golang.org/x/net/context"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	"google.golang.org/api/calendar/v3"
-	"go.bug.st/serial"
-	"os/signal"
-	"syscall"
 )
 
 type CalendarConfigData struct {
@@ -53,13 +54,13 @@ type ConfigData struct {
 	Device         string
 	BaudRate       int
 	googleConfig   []byte
-	logger        *log.Logger
+	logger         *log.Logger
 	port           serial.Port
 	portOpen       bool
 }
 
 func lightSignal(config *ConfigData, color string, delay time.Duration) {
-	var colorCode = map[string]string {
+	var colorCode = map[string]string{
 		"blue":     "B",
 		"green":    "G",
 		"off":      "X",
@@ -115,7 +116,7 @@ func tokenFromFile(file string) (*oauth2.Token, error) {
 	return tok, err
 }
 
-type BusyPeriod struct{
+type BusyPeriod struct {
 	Start, End time.Time
 }
 
@@ -133,9 +134,9 @@ func (a ByStartTime) Swap(i, j int) {
 	a[i], a[j] = a[j], a[i]
 }
 
-type CalendarAvailability struct{
-	LastPollTime      time.Time
-	UpcomingPeriods []BusyPeriod	// will be in chronological order
+type CalendarAvailability struct {
+	LastPollTime    time.Time
+	UpcomingPeriods []BusyPeriod // will be in chronological order
 }
 
 func (cal *CalendarAvailability) RemoveExpiredPeriods(config *ConfigData) {
@@ -146,7 +147,7 @@ func (cal *CalendarAvailability) RemoveExpiredPeriods(config *ConfigData) {
 			break
 		}
 	}
-	if len(cal.UpcomingPeriods) == 0 && time.Now().After(cal.LastPollTime.Add(30 * time.Minute)) {
+	if len(cal.UpcomingPeriods) == 0 && time.Now().After(cal.LastPollTime.Add(30*time.Minute)) {
 		err := cal.Refresh(config)
 		if err != nil {
 			config.logger.Printf("Unable to refresh calendar data while removing expired periods: %v", err)
@@ -186,13 +187,19 @@ func (cal *CalendarAvailability) ScheduledBusyNow(config *ConfigData) bool {
 func (cal *CalendarAvailability) Refresh(config *ConfigData) error {
 	config.logger.Printf("Polling Google Calendars")
 	googleConfig, err := google.ConfigFromJSON(config.googleConfig, calendar.CalendarReadonlyScope)
-	if err != nil { return err }
+	if err != nil {
+		return err
+	}
 
 	client, err := getClient(googleConfig, config.TokenFile)
-	if err != nil { return fmt.Errorf("Unable to query calendar: %v", err) }
+	if err != nil {
+		return fmt.Errorf("Unable to query calendar: %v", err)
+	}
 
 	srv, err := calendar.New(client)
-	if err != nil { return err }
+	if err != nil {
+		return err
+	}
 
 	var query calendar.FreeBusyRequest
 	queryStartTime := time.Now()
@@ -203,7 +210,9 @@ func (cal *CalendarAvailability) Refresh(config *ConfigData) error {
 		query.Items = append(query.Items, &calendar.FreeBusyRequestItem{Id: cId})
 	}
 	freelist, err := srv.Freebusy.Query(&query).Do()
-	if err != nil { return err }
+	if err != nil {
+		return err
+	}
 
 	var rawbusylist []BusyPeriod
 	for calId, calData := range freelist.Calendars {
@@ -236,10 +245,10 @@ func (cal *CalendarAvailability) Refresh(config *ConfigData) error {
 				// since all we see is the aggregate busy time ranges.
 				// So we'll compromise by assuming if the calendar is marked busy for the
 				// entire query period, it's something we should ignore for the given
-				// calendar. 
+				// calendar.
 				// It's far from perfect but it gets us closer to something useful.
-				if startTime.Before(queryStartTime.Add(5 * time.Second)) &&
-				   endTime.After(queryEndTime.Add(-5 * time.Second)) {
+				if startTime.Before(queryStartTime.Add(5*time.Second)) &&
+					endTime.After(queryEndTime.Add(-5*time.Second)) {
 					config.logger.Printf("Ignoring long-running event from %s", calInfo.Title)
 					continue
 				}
@@ -252,7 +261,7 @@ func (cal *CalendarAvailability) Refresh(config *ConfigData) error {
 	sort.Sort(ByStartTime(rawbusylist))
 	config.logger.Printf("DEBUG: Sorted list: %v", rawbusylist)
 	var currentStart time.Time
-	var currentEnd   time.Time
+	var currentEnd time.Time
 
 	cal.UpcomingPeriods = nil
 	for _, eachPeriod := range rawbusylist {
@@ -291,7 +300,7 @@ func (cal *CalendarAvailability) Refresh(config *ConfigData) error {
 //  free until next transition
 // Also globally know if in zoom meeting, which overrides the busy/free indicator
 //  until the meeting ends.
-// 
+//
 // At transition time:
 //  change global state
 //  signal status if not in zoom meeting
@@ -371,10 +380,10 @@ func setup(config *ConfigData) error {
 	//
 	// Signal that we're online and ready
 	//
-	lightSignal(config, "blue", 100 * time.Millisecond)
-	lightSignal(config, "off",   50 * time.Millisecond)
-	lightSignal(config, "blue", 100 * time.Millisecond)
-	lightSignal(config, "off",    0)
+	lightSignal(config, "blue", 100*time.Millisecond)
+	lightSignal(config, "off", 50*time.Millisecond)
+	lightSignal(config, "blue", 100*time.Millisecond)
+	lightSignal(config, "off", 0)
 
 	return nil
 }
@@ -384,10 +393,10 @@ func setup(config *ConfigData) error {
 //
 func closeDevice(config *ConfigData) {
 	if config.portOpen {
-		lightSignal(config, "red2", 100 * time.Millisecond)
-		lightSignal(config, "off",   50 * time.Millisecond)
-		lightSignal(config, "red2", 100 * time.Millisecond)
-		lightSignal(config, "off",    0)
+		lightSignal(config, "red2", 100*time.Millisecond)
+		lightSignal(config, "off", 50*time.Millisecond)
+		lightSignal(config, "red2", 100*time.Millisecond)
+		lightSignal(config, "off", 0)
 		config.logger.Printf("Closing serial port")
 		config.port.Close()
 		config.portOpen = false
@@ -426,10 +435,10 @@ func main() {
 		config.logger.Printf("Error updating busy/free times from calendar: %v", err)
 	}
 
-	isZoomNow   := false
+	isZoomNow := false
 	isZoomMuted := false
 	isActiveNow := true
-	isUrgent    := false
+	isUrgent := false
 
 	//
 	// Set the current state and schedule for next transition
