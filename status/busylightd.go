@@ -1,6 +1,4 @@
 //
-// vi:set ai sm nu ts=4 sw=4:
-//
 // Long-running daemon to control the busylight.
 // Automatically polls Google calendar busy/free times
 // and can be controlled via signals from a Zoom meeting
@@ -40,26 +38,52 @@ import (
 	"google.golang.org/api/calendar/v3"
 )
 
+// CalendarConfigData provides configuration data which can be specified for each calendar
+// being monitored. These are read from the config.json file.
 type CalendarConfigData struct {
-	Title              string
-	IgnoreAllDayEvents bool
+	Title              string // Arbitrary user-friendly name for the calendar
+	IgnoreAllDayEvents bool   // If true, ignore this calendar if booked the whole time
 }
 
+// ConfigData holds the configuration specified by the user in the config.json file
+// as well as some run-time values we need to refer to throughout the run of the daemon.
 type ConfigData struct {
-	Calendars      map[string]CalendarConfigData
-	TokenFile      string
+	// A map of all Google calendars being monitored by the daemon.Calendars
+	// The key is the Google-provided calendar ID; the value is a CalendarConfigData
+	// structure describing what we want to do with that calendar.
+	Calendars map[string]CalendarConfigData
+
+	// The path to the file where our access credentials to the calendars is cached.
+	TokenFile string
+
+	// The path to the file where our API keys are stored.
 	CredentialFile string
-	LogFile        string
-	PidFile        string
-	Device         string
-	BaudRate       int
-	googleConfig   []byte
-	logger         *log.Logger
-	port           serial.Port
-	portOpen       bool
+
+	// The path to our logfile where daemon activity is recorded.
+	LogFile string
+
+	// The path to the file where we store our PID while we're running.
+	PidFile string
+
+	// The path to the serial device we use to communicate with the light hardware.
+	Device string
+
+	// The baud rate at which we communicate with the hardware.
+	BaudRate int
+
+	// These values are used internally by the daemon while it's running.
+	googleConfig []byte      // unmarshalled data needed for Google API calls
+	logger       *log.Logger // logger open on the requested file
+	port         serial.Port // open serial port device
+	portOpen     bool        // is `port` valid and open now?
 }
 
+// lightSignal tells the hardware to signal a particular condition on the lights.
+// If `delay` is positive, we wait that long before returning, to make some trivial
+// multi-step (but very quick and short-lived) sequences easy to implement.
 func lightSignal(config *ConfigData, color string, delay time.Duration) {
+	// colorCode maps the color strings as passed in to this function to the
+	// actual commands sent to the hardware.
 	var colorCode = map[string]string{
 		"blue":     "B",
 		"green":    "G",
@@ -116,10 +140,12 @@ func tokenFromFile(file string) (*oauth2.Token, error) {
 	return tok, err
 }
 
+// BusyPeriod specifies a range of times during which a calendar indicates one or more events occur.
 type BusyPeriod struct {
 	Start, End time.Time
 }
 
+// ByStartTime provides a custom sort order for `BusyPeriod` elements.
 type ByStartTime []BusyPeriod
 
 func (a ByStartTime) Len() int {
@@ -134,11 +160,16 @@ func (a ByStartTime) Swap(i, j int) {
 	a[i], a[j] = a[j], a[i]
 }
 
+// CalendarAvailability tracks the overall availability as shown on the monitored calendars.
 type CalendarAvailability struct {
-	LastPollTime    time.Time
+	// When did we most recently check with the API to get calendar busy/free times?
+	LastPollTime time.Time
+
+	// The list of "busy" time spans found on the calendars from the last poll.
 	UpcomingPeriods []BusyPeriod // will be in chronological order
 }
 
+// RemoveExpiredPeriods trims busy spans from a `CalendarAvailability` value which occur in the past.
 func (cal *CalendarAvailability) RemoveExpiredPeriods(config *ConfigData) {
 	for len(cal.UpcomingPeriods) > 0 {
 		if time.Now().Add(5 * time.Second).After(cal.UpcomingPeriods[0].End) {
@@ -156,6 +187,7 @@ func (cal *CalendarAvailability) RemoveExpiredPeriods(config *ConfigData) {
 	// yes, we're trusting the Google service not to give us past events.
 }
 
+// NextTransitionTime returns the absolute time at which we need to check again to change the lights.
 func (cal *CalendarAvailability) NextTransitionTime(config *ConfigData) time.Time {
 	cal.RemoveExpiredPeriods(config)
 
@@ -172,6 +204,7 @@ func (cal *CalendarAvailability) NextTransitionTime(config *ConfigData) time.Tim
 	return cal.UpcomingPeriods[0].Start
 }
 
+// ScheduledBusyNow checks to see if, according to the monitored calendars, we are scheduled to be busy right now.
 func (cal *CalendarAvailability) ScheduledBusyNow(config *ConfigData) bool {
 	cal.RemoveExpiredPeriods(config)
 
@@ -184,6 +217,7 @@ func (cal *CalendarAvailability) ScheduledBusyNow(config *ConfigData) bool {
 	return false
 }
 
+// Refresh polls the Google API and updates the `CalendarAvailability` structure accordingly.
 func (cal *CalendarAvailability) Refresh(config *ConfigData) error {
 	config.logger.Printf("Polling Google Calendars")
 	googleConfig, err := google.ConfigFromJSON(config.googleConfig, calendar.CalendarReadonlyScope)
@@ -206,8 +240,8 @@ func (cal *CalendarAvailability) Refresh(config *ConfigData) error {
 	queryEndTime := queryStartTime.Add(time.Hour * 8)
 	query.TimeMin = queryStartTime.Format(time.RFC3339)
 	query.TimeMax = queryEndTime.Format(time.RFC3339)
-	for cId := range config.Calendars {
-		query.Items = append(query.Items, &calendar.FreeBusyRequestItem{Id: cId})
+	for cID := range config.Calendars {
+		query.Items = append(query.Items, &calendar.FreeBusyRequestItem{Id: cID})
 	}
 	freelist, err := srv.Freebusy.Query(&query).Do()
 	if err != nil {
@@ -215,12 +249,12 @@ func (cal *CalendarAvailability) Refresh(config *ConfigData) error {
 	}
 
 	var rawbusylist []BusyPeriod
-	for calId, calData := range freelist.Calendars {
-		calInfo, isKnown := config.Calendars[calId]
+	for calID, calData := range freelist.Calendars {
+		calInfo, isKnown := config.Calendars[calID]
 		if !isKnown {
-			config.logger.Printf("WARNING: Calendar <%s> in API results does not match any in our configuration!", calId)
+			config.logger.Printf("WARNING: Calendar <%s> in API results does not match any in our configuration!", calID)
 			calInfo = CalendarConfigData{
-				Title: fmt.Sprintf("UNKNOWN<%v>", calId),
+				Title: fmt.Sprintf("UNKNOWN<%v>", calID),
 			}
 		}
 
@@ -293,7 +327,7 @@ func (cal *CalendarAvailability) Refresh(config *ConfigData) error {
 }
 
 //
-// we can maintain a list of busy/free times since the last time we polled the calendar.
+// We maintain a list of busy/free times since the last time we polled the calendar.
 // from that we can also know when the next transition time will be
 // global state:
 //  busy until next transition

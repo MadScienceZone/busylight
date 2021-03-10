@@ -23,22 +23,28 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"time"
 	"os/user"
 	"path/filepath"
+	"time"
+
 	"golang.org/x/net/context"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	"google.golang.org/api/calendar/v3"
 )
 
-type ConfigData struct {
-	Calendars      []string
+type calendarConfigData struct {
+	Title              string
+	IgnoreAllDayEvents bool
+}
+
+type configData struct {
+	Calendars      map[string]calendarConfigData
 	TokenFile      string
 	CredentialFile string
 }
 
-func getConfigFromFile(filename string, data *ConfigData) error {
+func getConfigFromFile(filename string, data *configData) error {
 	cdata, err := ioutil.ReadFile(filename)
 	if err != nil {
 		return fmt.Errorf("Unable to read from %s: %v", filename, err)
@@ -98,7 +104,7 @@ func saveToken(path string, token *oauth2.Token) {
 }
 
 func main() {
-	var config ConfigData
+	var config configData
 	var thisUser *user.User
 
 	thisUser, err := user.Current()
@@ -134,8 +140,8 @@ func main() {
 	var query calendar.FreeBusyRequest
 	query.TimeMax = eod
 	query.TimeMin = now
-	for _, calId := range config.Calendars {
-		query.Items = append(query.Items, &calendar.FreeBusyRequestItem{Id: calId})
+	for calID := range config.Calendars {
+		query.Items = append(query.Items, &calendar.FreeBusyRequestItem{Id: calID})
 	}
 
 	//
@@ -147,14 +153,14 @@ func main() {
 		log.Fatalf("Error reading calendar: %v", err)
 		errors++
 	}
-	for calId, calData := range freelist.Calendars {
-		log.Printf("For calendar <%v>:", calId)
+	for calID, calData := range freelist.Calendars {
+		log.Printf("For calendar <%v>:", calID)
 		for _, e := range calData.Errors {
 			log.Printf("   ERROR %v", e)
 		}
 		for _, busy := range calData.Busy {
 			st, err := time.Parse(time.RFC3339, busy.Start)
-			et, err2:= time.Parse(time.RFC3339, busy.End)
+			et, err2 := time.Parse(time.RFC3339, busy.End)
 			if err != nil || err2 != nil {
 				log.Printf("   ERROR: Unable to understand these time values: %v - %v", busy.Start, busy.End)
 			} else {
@@ -166,5 +172,3 @@ func main() {
 		log.Fatalf("Errors encountered: %d", errors)
 	}
 }
-
-
