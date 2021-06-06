@@ -11,7 +11,7 @@
 //    VTALRM - toggle urgent indicator
 //    WINCH  - toggle idle/working state
 //
-// Steve Willoughby <steve@alchemy.com>
+// Steve Willoughby <steve@madscience.zone>
 // License: BSD 3-Clause open-source license
 //
 
@@ -23,10 +23,10 @@ import (
 	"io/ioutil"
 	"os"
 	"os/user"
-	"strconv"
-	"syscall"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"syscall"
 )
 
 func fatal(format string, a ...interface{}) {
@@ -45,22 +45,44 @@ func main() {
 	flag.Parse()
 
 	thisUser, err := user.Current()
-	if err != nil { fatal("Who are you? (%v)\n", err) }
+	if err != nil {
+		fatal("Who are you? (%v)\n", err)
+	}
 
 	pidbytes, err := ioutil.ReadFile(filepath.Join(thisUser.HomeDir, ".busylight/busylightd.pid"))
-	if err != nil { fatal("Can't read PID file: %v\n", err) }
+	if err != nil {
+		fatal("Can't read PID file: %v\n", err)
+	}
 
 	pid, err := strconv.Atoi(strings.TrimSuffix(string(pidbytes), "\n"))
-	if err != nil { fatal("Can't understand PID value: %v\n", err) }
+	if err != nil {
+		fatal("Can't understand PID value: %v\n", err)
+	}
 
 	process, err := os.FindProcess(pid)
-	if err != nil { fatal("Can't find daemon process: %v\n", err) }
+	if err != nil {
+		fatal("Can't find daemon process: %v\n", err)
+	}
 
-	if *Furgent { process.Signal(syscall.SIGVTALRM)   }
-	if *Fmute   { process.Signal(syscall.SIGUSR1)  }
-	if *Fopen   { process.Signal(syscall.SIGUSR2)  }
-	if *Fcal    { process.Signal(syscall.SIGHUP)   }
-	if *Fzzz    { process.Signal(syscall.SIGWINCH) }
-	if *Fkill   { process.Signal(syscall.SIGINT)   }
-	if *Freload { process.Signal(syscall.SIGINFO)  }
+	if *Furgent {
+		process.Signal(syscall.SIGVTALRM)
+	}
+	if *Fmute {
+		process.Signal(syscall.SIGUSR1)
+	}
+	if *Fopen {
+		process.Signal(syscall.SIGUSR2)
+	}
+	if *Fcal {
+		process.Signal(syscall.SIGHUP)
+	}
+	if *Fzzz {
+		process.Signal(syscall.SIGWINCH)
+	}
+	if *Fkill {
+		process.Signal(syscall.SIGINT)
+	}
+	if *Freload {
+		process.Signal(syscall.SIGINFO)
+	}
 }

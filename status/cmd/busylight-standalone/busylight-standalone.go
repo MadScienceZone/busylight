@@ -7,7 +7,7 @@
 // hardware but isn't intended to be part of the
 // "production" code.
 //
-// Steve Willoughby <steve@alchemy.com>
+// Steve Willoughby <steve@madscience.zone>
 // License: BSD 3-Clause open-source license
 //
 package main
@@ -15,8 +15,9 @@ package main
 import (
 	"flag"
 	"fmt"
-	"go.bug.st/serial"
 	"log"
+
+	"go.bug.st/serial"
 )
 
 func main() {
@@ -34,7 +35,9 @@ func main() {
 
 	if *list {
 		names, err := serial.GetPortsList()
-		if err != nil { panic(err) }
+		if err != nil {
+			panic(err)
+		}
 		for _, name := range names {
 			fmt.Println(name)
 		}
@@ -50,24 +53,26 @@ func main() {
 	defer port.Close()
 
 	switch {
-		case *red1:
-			_, err = port.Write([]byte("R"))
-		case *red2:
-			_, err = port.Write([]byte("2"))
-		case *reds:
-			_, err = port.Write([]byte("!"))
-		case *green:
-			_, err = port.Write([]byte("G"))
-		case *blue:
-			_, err = port.Write([]byte("B"))
-		case *yellow:
-			_, err = port.Write([]byte("Y"))
-		case *redred:
-			_, err = port.Write([]byte("#"))
-		case *redblue:
-			_, err = port.Write([]byte("%"))
-		case *off:
-			_, err = port.Write([]byte("X"))
+	case *red1:
+		_, err = port.Write([]byte("R"))
+	case *red2:
+		_, err = port.Write([]byte("2"))
+	case *reds:
+		_, err = port.Write([]byte("!"))
+	case *green:
+		_, err = port.Write([]byte("G"))
+	case *blue:
+		_, err = port.Write([]byte("B"))
+	case *yellow:
+		_, err = port.Write([]byte("Y"))
+	case *redred:
+		_, err = port.Write([]byte("#"))
+	case *redblue:
+		_, err = port.Write([]byte("%"))
+	case *off:
+		_, err = port.Write([]byte("X"))
 	}
-	if err != nil { panic(err) }
+	if err != nil {
+		panic(err)
+	}
 }

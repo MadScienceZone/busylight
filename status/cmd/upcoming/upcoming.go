@@ -1,7 +1,7 @@
 //
 // vi:set ai sm nu ts=4 sw=4:
 //
-// Steve Willoughby <steve@alchemy.com>
+// Steve Willoughby <steve@madscience.zone>
 // License: BSD 3-Clause open-source license
 //
 // Check for upcoming meetings in Google calendar.

@@ -11,7 +11,7 @@
 //    VTALRM - toggle urgent indicator
 //    WINCH  - toggle idle/working state
 //
-// Steve Willoughby <steve@alchemy.com>
+// Steve Willoughby <steve@madscience.zone>
 // License: BSD 3-Clause open-source license
 //
 

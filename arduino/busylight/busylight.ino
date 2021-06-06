@@ -1,5 +1,5 @@
 /*
-** Steve Willoughby <steve@alchemy.com>
+** Steve Willoughby <steve@madscience.zone>
 ** vi:set ai sm nu ts=4 sw=4:
 ** Licensing: BSD 3-clause open-source license
 **
