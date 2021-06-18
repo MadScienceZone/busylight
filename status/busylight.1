@@ -1,4 +1,4 @@
-.TH BUSYLIGHT 1 1.3 06-Jun-2021 "User Commands"
+.TH BUSYLIGHT 1 1.4 18-Jun-2021 "User Commands"
 .SH NAME
 busylight \- display busy/free status to passers-by
 .SH SYNOPSIS
@@ -208,6 +208,19 @@ should use to indicate its PID while running.
 .B "Device"
 The system device name of the busylight signal hardware.
 .TP
+.B "DeviceDir"
+If 
+.B Device
+is omitted or blank, then a suitable device will be searched for
+in the directory named here. See also
+.BR DeviceRegexp .
+.TP
+.B DeviceRegexp
+If searching for a device name in
+.BR DeviceDir ,
+the first device whose name matches the regular expression given here
+and can be successfully opened as a serial port will be used.
+.TP
 .B "BaudRate"
 The speed the hardware expects to be used to communicate with it.
 .LP
@@ -232,6 +245,19 @@ An example configuration file would look like this:
     "Device":  "/dev/tty.usbmodem2101",
     "BaudRate": 9600
 }
+.ad
+.fi
+.RE
+.LP
+If using a regular expression for the device rather than a fixed name,
+the
+.B Device
+entry of the above JSON would be replaced with these two:
+.RS
+.na
+.nf
+    "DeviceDir": "/dev",
+    "DeviceRegexp": "^tty\e\e.usbmodem\e\ed+$",
 .ad
 .fi
 .RE
