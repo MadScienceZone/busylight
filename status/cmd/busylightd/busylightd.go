@@ -10,7 +10,7 @@
 //    INFO   - force refresh from calendar now
 //    VTALRM - toggle urgent indicator
 //    WINCH  - toggle idle/working state
-//    PROF   - toggle low-priority 
+//    CHLD   - toggle low-priority
 //
 // Steve Willoughby <steve@madscience.zone>
 // License: BSD 3-Clause open-source license
@@ -28,6 +28,7 @@ import (
 	"os/signal"
 	"os/user"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"syscall"
 	"time"
@@ -68,6 +69,12 @@ type ConfigData struct {
 
 	// The path to the serial device we use to communicate with the light hardware.
 	Device string
+
+	// If `Device` is empty, then `DeviceDir` specifies a directory to search for
+	// the hardware port. The first file we can successfully open that matches
+	// the regular expression `DeviceRegexp` will be used.
+	DeviceDir    string
+	DeviceRegexp string
 
 	// The baud rate at which we communicate with the hardware.
 	BaudRate int
@@ -405,14 +412,51 @@ func setup(config *ConfigData) error {
 		config.port.Close()
 		config.portOpen = false
 	}
-	config.port, err = serial.Open(config.Device, &serial.Mode{
-		BaudRate: config.BaudRate,
-	})
-	if err != nil {
-		shutdown(config)
-		config.logger.Fatalf("Can't open serial device %v: %v", config.Device, err)
+
+	// If the user had a specific port in mind, just use that.
+	if config.Device != "" {
+		config.port, err = serial.Open(config.Device, &serial.Mode{
+			BaudRate: config.BaudRate,
+		})
+		if err != nil {
+			shutdown(config)
+			config.logger.Fatalf("Can't open serial device %v: %v", config.Device, err)
+		}
+		config.portOpen = true
+	} else {
+		// On the other hand, maybe we should hunt around to find it.
+		// This is necessary on systems where the USB port is given a
+		// random device name every time.
+		config.logger.Printf("Searching for available device port in %s...", config.DeviceDir)
+		fileList, err := os.ReadDir(config.DeviceDir)
+		if err != nil {
+			shutdown(config)
+			config.logger.Fatalf("Can't scan directory %s: %v", config.DeviceDir, err)
+		}
+		for _, f := range fileList {
+			if !f.IsDir() {
+				ok, err := regexp.MatchString(config.DeviceRegexp, f.Name())
+				if err != nil {
+					shutdown(config)
+					config.logger.Fatalf("Matching %s vs %s: %v", f.Name(), config.DeviceRegexp, err)
+				}
+				if ok {
+					config.port, err = serial.Open(fmt.Sprintf("%s%c%s", config.DeviceDir, os.PathSeparator, f.Name()),
+						&serial.Mode{BaudRate: config.BaudRate})
+					if err == nil {
+						config.logger.Printf("Opened %s%c%s", config.DeviceDir, os.PathSeparator, f.Name())
+						config.portOpen = true
+						break
+					}
+				}
+			}
+		}
+		if !config.portOpen {
+			shutdown(config)
+			config.logger.Fatalf("Unable to open any device matching /%s/ in %s.", config.DeviceRegexp, config.DeviceDir)
+		}
 	}
-	config.portOpen = true
+
 	//
 	// Signal that we're online and ready
 	//
@@ -460,7 +504,7 @@ func main() {
 	// Listen for incoming signals from outside
 	//
 	req := make(chan os.Signal, 5)
-	signal.Notify(req, syscall.SIGHUP, syscall.SIGUSR1, syscall.SIGUSR2, syscall.SIGWINCH, syscall.SIGINFO, syscall.SIGINT, syscall.SIGVTALRM, syscall.SIGPROF)
+	signal.Notify(req, syscall.SIGHUP, syscall.SIGUSR1, syscall.SIGUSR2, syscall.SIGWINCH, syscall.SIGINFO, syscall.SIGINT, syscall.SIGVTALRM, syscall.SIGCHLD)
 
 	//
 	// Get initial calendar download
@@ -529,7 +573,7 @@ eventLoop:
 				isUrgent = !isUrgent
 				config.logger.Printf("Toggle URGENT indicator to %v", isUrgent)
 
-			case syscall.SIGPROF:
+			case syscall.SIGCHLD:
 				isLowPriority = !isLowPriority
 				config.logger.Printf("Toggle low-priority indicator to %v", isLowPriority)
 
