@@ -79,22 +79,22 @@ void setup() {
 	// Cycle through all the lights at power-on
 	// to test that they all work
 	//
-	all_off();
+	all_off(true);
 	digitalWrite(tree_blue, HIGH);
 	delay(200);
-	all_off();
+	all_off(true);
 	digitalWrite(tree_red_2, HIGH);
 	delay(200);
-	all_off();
+	all_off(true);
 	digitalWrite(tree_red_1, HIGH);
 	delay(200);
-	all_off();
+	all_off(true);
 	digitalWrite(tree_yellow, HIGH);
 	delay(200);
-	all_off();
+	all_off(true);
 	digitalWrite(tree_green, HIGH);
 	delay(200);
-	all_off();
+	all_off(true);
 	//
 	// Our serial port will be 9600 baud
 	//
@@ -104,8 +104,10 @@ void setup() {
 //
 // all_off(): reset device to all off, no flashing
 //
-void all_off() {
-	tree_flash = 0;
+void all_off(bool reset_state) {
+	if (reset_state) {
+		tree_flash = 0;
+	}
 	digitalWrite(tree_green, LOW);
 	digitalWrite(tree_yellow, LOW);
 	digitalWrite(tree_red_1, LOW);
@@ -125,26 +127,26 @@ void loop() {
 		switch (Serial.read()) {
 		case 'B':
 		case 'b':
-			all_off();
+			all_off(true);
 			digitalWrite(tree_blue, HIGH);
 			break;
 		case 'G':
 		case 'g':
-			all_off();
+			all_off(true);
 			digitalWrite(tree_green, HIGH);
 			break;
 		case 'Y':
 		case 'y':
-			all_off();
+			all_off(true);
 			digitalWrite(tree_yellow, HIGH);
 			break;
 		case 'R':
 		case 'r':
-			all_off();
+			all_off(true);
 			digitalWrite(tree_red_1, HIGH);
 			break;
 		case '2':
-			all_off();
+			all_off(true);
 			digitalWrite(tree_red_2, HIGH);
 			break;
 		case '!':
@@ -152,19 +154,22 @@ void loop() {
 			// ======== two lights at once. That might push
 			//          the current drain too close to the
 			//          maximum output of some USB ports.
-			all_off();
+			all_off(true);
 			digitalWrite(tree_red_1, HIGH);
 			digitalWrite(tree_red_2, HIGH);
 			break;
 		case 'X':
 		case 'x':
-			all_off();
+			all_off(true);
 			break;
 		case '#':
 			tree_flash = 1;
 			break;
 		case '%':
 			tree_flash = 3;
+			break;
+		case '@':
+			tree_flash |= 0x40;
 			break;
 		}
 	}
@@ -176,25 +181,45 @@ void loop() {
 	// that long before reading the next input
 	// from the serial port.
 	//
-	if (tree_flash == 1) {			// [1] red 2 -> red 1; ==> [2]
-		all_off();
-		tree_flash = 2;
+	// tree_flash
+	//  -----001 -> -----010	red2->red1
+	//  -----010 -> -----001    red1->red2
+	//  -----011 -> -----100	red2->blue
+	//  -----100 -> -----011	blue->red2
+	//  -1------ -> -1------    flash green
+	//
+#define TREE_FLASH_GREEN	0x40
+#define TREE_FLASH_MODE		0x07
+
+	if ((tree_flash & TREE_FLASH_MODE) == 1) {
+		all_off(false);
+		tree_flash = (tree_flash & ~TREE_FLASH_MODE) | 2;
 		digitalWrite(tree_red_1, HIGH);
 		delay(200);
-	} else if (tree_flash == 2) {		// [2] red 1 -> red 2; ==> [1]
-		all_off();
-		tree_flash = 1;
+		if (tree_flash & TREE_FLASH_GREEN) {
+			digitalWrite(tree_green, HIGH);
+			delay(50);
+			digitalWrite(tree_green, LOW);
+		}
+	} else if ((tree_flash & TREE_FLASH_MODE) == 2) {		
+		all_off(false);
+		tree_flash = (tree_flash & ~TREE_FLASH_MODE) | 1;
 		digitalWrite(tree_red_2, HIGH);
 		delay(200);
-	} else if (tree_flash == 3) {		// [3] red 2 -> blue; ==> [4]
-		all_off();
-		tree_flash = 4;
+	} else if ((tree_flash & TREE_FLASH_MODE) == 3) {
+		all_off(false);
+		tree_flash = (tree_flash & ~TREE_FLASH_MODE) | 4;
 		digitalWrite(tree_blue, HIGH);
 		delay(200);
-	} else if (tree_flash == 4) {		// [4] blue -> red 2; ==> [3]
-		all_off();
-		tree_flash = 3;
+	} else if ((tree_flash & TREE_FLASH_MODE) == 4) {
+		all_off(false);
+		tree_flash = (tree_flash & ~TREE_FLASH_MODE) | 3;
 		digitalWrite(tree_red_2, HIGH);
 		delay(200);
+	} else if (tree_flash & TREE_FLASH_GREEN) {
+		digitalWrite(tree_green, HIGH);
+		delay(50);
+		digitalWrite(tree_green, LOW);
+		delay(2000);
 	}
 }

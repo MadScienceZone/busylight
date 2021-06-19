@@ -12,6 +12,7 @@ Y	Turn on only the yellow light.
 !	Turn on both red lights at the same time.
 #	Alternately flash both red lights.
 %	Alternately flash the top (#2) red light and the blue light.
+@       Add green strobe until any other command listed above is sent.
 
 Any other characters are silently ignored, so it is safe to add spaces,
 newlines, etc. to the output stream if needed.

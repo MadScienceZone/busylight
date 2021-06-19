@@ -10,6 +10,7 @@
 //    INFO   - force refresh from calendar now
 //    VTALRM - toggle urgent indicator
 //    WINCH  - toggle idle/working state
+//    PROF   - toggle low-priority indicator
 //
 // Steve Willoughby <steve@madscience.zone>
 // License: BSD 3-Clause open-source license
@@ -42,6 +43,7 @@ func main() {
 	var Fkill = flag.Bool("kill", false, "terminate busylight service")
 	var Freload = flag.Bool("reload", false, "reload calendar data")
 	var Furgent = flag.Bool("urgent", false, "toggle urgent condition indicator")
+	var Flowpri = flag.Bool("lowpri", false, "toggle low-priority condition indicator")
 	flag.Parse()
 
 	thisUser, err := user.Current()
@@ -84,5 +86,8 @@ func main() {
 	}
 	if *Freload {
 		process.Signal(syscall.SIGINFO)
+	}
+	if *Flowpri {
+		process.Signal(syscall.SIGPROF)
 	}
 }

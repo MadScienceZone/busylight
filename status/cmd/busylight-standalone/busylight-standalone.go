@@ -31,6 +31,8 @@ func main() {
 	var redblue = flag.Bool("redblue", false, "flash red and blue alternately")
 	var off = flag.Bool("off", false, "turn off lights")
 	var list = flag.Bool("list", false, "list port names")
+	var low = flag.Bool("lowpri", false, "low-priority signal")
+	var device = flag.String("device", "", "serial device of the light")
 	flag.Parse()
 
 	if *list {
@@ -44,7 +46,11 @@ func main() {
 		return
 	}
 
-	port, err := serial.Open("/dev/tty.usbmodem5301", &serial.Mode{
+	if device == nil || *device == "" {
+		log.Fatalf("--device option is required; use --list to see a list of possible devices to use.")
+	}
+
+	port, err := serial.Open(*device, &serial.Mode{
 		BaudRate: 9600,
 	})
 	if err != nil {
@@ -53,26 +59,25 @@ func main() {
 	defer port.Close()
 
 	switch {
-	case *red1:
-		_, err = port.Write([]byte("R"))
-	case *red2:
-		_, err = port.Write([]byte("2"))
-	case *reds:
-		_, err = port.Write([]byte("!"))
-	case *green:
-		_, err = port.Write([]byte("G"))
-	case *blue:
-		_, err = port.Write([]byte("B"))
-	case *yellow:
-		_, err = port.Write([]byte("Y"))
-	case *redred:
-		_, err = port.Write([]byte("#"))
-	case *redblue:
-		_, err = port.Write([]byte("%"))
-	case *off:
-		_, err = port.Write([]byte("X"))
+	case *red1:  send("R", port)
+	case *red2:  send("2", port)
+	case *reds:  send("!", port)
+	case *green: send("G", port)
+	case *blue:  send("B", port)
+	case *yellow:send("Y", port)
+	case *redred:send("#", port)
+	case *redblue:send("%", port)
+	case *off:    send("X", port)
 	}
+	if *low {
+		send("@", port)
+	}
+}
+
+func send(code string, port serial.Port) {
+	fmt.Printf("Sending %s\n", code)
+	_, err := port.Write([]byte(code))
 	if err != nil {
-		panic(err)
+		log.Fatalf("Error writing to serial port: %v", err)
 	}
 }

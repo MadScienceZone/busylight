@@ -10,6 +10,7 @@
 //    INFO   - force refresh from calendar now
 //    VTALRM - toggle urgent indicator
 //    WINCH  - toggle idle/working state
+//    PROF   - toggle low-priority 
 //
 // Steve Willoughby <steve@madscience.zone>
 // License: BSD 3-Clause open-source license
@@ -93,6 +94,7 @@ func lightSignal(config *ConfigData, color string, delay time.Duration) {
 		"redflash": "#",
 		"urgent":   "%",
 		"yellow":   "Y",
+		"lowpri":   "@",
 	}
 
 	if config.portOpen {
@@ -458,7 +460,7 @@ func main() {
 	// Listen for incoming signals from outside
 	//
 	req := make(chan os.Signal, 5)
-	signal.Notify(req, syscall.SIGHUP, syscall.SIGUSR1, syscall.SIGUSR2, syscall.SIGWINCH, syscall.SIGINFO, syscall.SIGINT, syscall.SIGVTALRM)
+	signal.Notify(req, syscall.SIGHUP, syscall.SIGUSR1, syscall.SIGUSR2, syscall.SIGWINCH, syscall.SIGINFO, syscall.SIGINT, syscall.SIGVTALRM, syscall.SIGPROF)
 
 	//
 	// Get initial calendar download
@@ -473,6 +475,7 @@ func main() {
 	isZoomMuted := false
 	isActiveNow := true
 	isUrgent := false
+	isLowPriority := false
 
 	//
 	// Set the current state and schedule for next transition
@@ -525,6 +528,10 @@ eventLoop:
 			case syscall.SIGVTALRM:
 				isUrgent = !isUrgent
 				config.logger.Printf("Toggle URGENT indicator to %v", isUrgent)
+
+			case syscall.SIGPROF:
+				isLowPriority = !isLowPriority
+				config.logger.Printf("Toggle low-priority indicator to %v", isLowPriority)
 
 			case syscall.SIGHUP:
 				config.logger.Printf("ZOOM: Call ended")
@@ -608,6 +615,9 @@ eventLoop:
 			} else {
 				lightSignal(&config, "green", 0)
 				config.logger.Printf("Signal FREE")
+			}
+			if isLowPriority {
+				lightSignal(&config, "lowpri", 0)
 			}
 		} else {
 			lightSignal(&config, "off", 0)

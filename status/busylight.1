@@ -1,4 +1,4 @@
-.TH BUSYLIGHT 1 1.4 18-Jun-2021 "User Commands"
+.TH BUSYLIGHT 1 1.5 19-Jun-2021 "User Commands"
 .SH NAME
 busylight \- display busy/free status to passers-by
 .SH SYNOPSIS
@@ -8,6 +8,7 @@ busylight \- display busy/free status to passers-by
 .B busylightd
 .LP
 .B busylight-standalone
+.RI [ options ]
 .I color
 .LP
 .B upcoming
@@ -40,6 +41,10 @@ has ended.)
 .TP
 .B \-\-kill
 Tell the daemon to terminate immediately.
+.TP
+.B \-\-lowpri
+Tell the daemon that we should add a \*(lqlow-priority\*(rq marker on the light.
+This is a toggle; sending it again turns off the marker.
 .TP
 .B \-\-mute
 Tell the daemon that we are in a Zoom call with the microphone muted.
@@ -74,11 +79,19 @@ a (hardcoded) port and commands the light device to display a color based on the
 .B \-\-blue
 Turn on the blue light.
 .TP
+.BI "\-\-device " name
+Use the named serial device.
+.TP
 .B \-\-green
 Turn on the green light.
 .TP
 .B \-\-list
-List the available ports on the system. (Currently it is necessary to change the target port in the source code.)
+List the available ports on the system for use with the
+.B \-\-device
+option.
+.TP
+.B \-\-lowpri
+Add the low-priority signal to other indicators being displayed.
 .TP
 .B \-\-red
 Turn on the lower red light.
@@ -344,6 +357,10 @@ is received at 3:45, the next poll will still take place at 4:05).
 .B INT
 Upon receipt of this signal, the daemon gracefully shuts down and terminates.
 .TP
+.B PROF
+Toggles the low-priority indicator status. This causes the green lights to
+strobe at a low rate in addition to other lights.
+.TP
 .B VTALRM
 Toggles urgent indicator status. Initially it makes the light signal display an urgent flashing pattern.
 When received again, the daemon resumes normal display.
@@ -382,9 +399,3 @@ The author's intended use for the daemon was on a Macintosh osx system, and the 
 signals was based on their availability on that platform. Other operating systems may not
 support all of those signals, so porting to those systems may involve a different selection
 of signals.
-.SH BUGS
-.LP
-The
-.B busylight-standalone
-program is not intended for production use and thus still has some needed refactoring. In particular, the
-device port is hardcoded into it rather than using a configuration file as the other tools do.
