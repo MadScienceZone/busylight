@@ -40,6 +40,23 @@ There's a *busylight(1)* manual page included which explains the setup and opera
 A schematic of how I wired up the hardware is also included, although it's fairly trivial, and can be adjusted to suit your needs.
 
 # Release notes
+## Version 1.5
+Adds a low-priority indicator to be added in addition to the other
+markers so you can say things like "I'm in a video call but it's not
+so important that I can't be interrupted. Just understand I'm on camera."
+
+Also re-added the 1.4 changes to the repo since apparently they didn't get
+committed correctly before.
+
+Also also becoming very apparent that using signals to notify the daemon
+of changes in state was a bad idea (given the limited availability of
+signals that are safe to co-opt for this usage), so a future version will 
+likely introduce a new mechanism for that.
+
+## Version 1.4
+Allows a regular expression for the device name now, so that the daemon
+can search for whatever name the OS randomly chose for the hardware device.
+
 ## Version 1.3
 The daemon now closes the serial port when put in inactive state and
 re-opens it when going active again. It also reloads its configuration
