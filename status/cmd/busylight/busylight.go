@@ -1,6 +1,4 @@
 //
-// vi:set ai sm nu ts=4 sw=4:
-//
 // CLI tool to control long-running daemon busylightd
 // by sending it these signals:
 //
@@ -10,7 +8,7 @@
 //    INFO   - force refresh from calendar now
 //    VTALRM - toggle urgent indicator
 //    WINCH  - toggle idle/working state
-//    PROF   - toggle low-priority indicator
+//    CHLD   - toggle low-priority indicator
 //
 // Steve Willoughby <steve@madscience.zone>
 // License: BSD 3-Clause open-source license
@@ -88,6 +86,6 @@ func main() {
 		process.Signal(syscall.SIGINFO)
 	}
 	if *Flowpri {
-		process.Signal(syscall.SIGPROF)
+		process.Signal(syscall.SIGCHLD)
 	}
 }
