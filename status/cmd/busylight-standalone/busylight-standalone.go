@@ -19,17 +19,22 @@ import (
 )
 
 func main() {
-	var red1 = flag.Bool("red", false, "display red #1 light")
-	var red2 = flag.Bool("red2", false, "display red #2 light")
-	var reds = flag.Bool("reds", false, "display both red lights")
-	var green = flag.Bool("green", false, "display green light")
-	var blue = flag.Bool("blue", false, "display blue light")
-	var yellow = flag.Bool("yellow", false, "display yellow light")
-	var redred = flag.Bool("redred", false, "flash both reds alternately")
-	var redblue = flag.Bool("redblue", false, "flash red and blue alternately")
+	var steady = flag.String("on", "", "turn on light (0-6)")
+	var flash = flag.String("flash", "", "flash one or more lights (0-6)")
+	var strobe = flag.String("strobe", "", "strobe one or more lights (0-6 or \"off\")")
+
+	var red1 = flag.Bool("red", false, "(deprecated, legacy) display red #1 light")
+	var red2 = flag.Bool("red2", false, "(deprecated, legacy) display red #2 light")
+	var reds = flag.Bool("reds", false, "(deprecated, legacy) display red #1 light")
+	var green = flag.Bool("green", false, "(deprecated, legacy) display green light")
+	var blue = flag.Bool("blue", false, "(deprecated, legacy) display blue light")
+	var yellow = flag.Bool("yellow", false, "(deprecated, legacy) display yellow light")
+	var redred = flag.Bool("redred", false, "(deprecated, legacy) flash both reds alternately")
+	var redblue = flag.Bool("redblue", false, "(deprecated, legacy) flash red and blue alternately")
+	var low = flag.Bool("lowpri", false, "(deprecated, legacy) low-priority signal")
+
 	var off = flag.Bool("off", false, "turn off lights")
 	var list = flag.Bool("list", false, "list port names")
-	var low = flag.Bool("lowpri", false, "low-priority signal")
 	var device = flag.String("device", "", "serial device of the light")
 	flag.Parse()
 
@@ -57,6 +62,27 @@ func main() {
 	defer port.Close()
 
 	switch {
+	/* new, more general, commands */
+	case *steady != "":
+		if len(*steady) != 1 {
+			log.Fatal("--on requres a single light ID (e.g. --on=2)")
+		}
+		send("S"+*steady, port)
+
+	case *flash != "":
+		send("F"+*flash+"$", port)
+
+	case *strobe != "":
+		if *strobe == "off" {
+			send("*$", port)
+		} else {
+			send("*"+*strobe+"$", port)
+		}
+
+	case *off:
+		send("X", port)
+
+	/* support for old legacy commands */
 	case *red1:
 		send("R", port)
 	case *red2:
@@ -73,8 +99,6 @@ func main() {
 		send("#", port)
 	case *redblue:
 		send("%", port)
-	case *off:
-		send("X", port)
 	}
 	if *low {
 		send("@", port)
