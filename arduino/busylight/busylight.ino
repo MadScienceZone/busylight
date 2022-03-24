@@ -1,38 +1,47 @@
 /*
 ** Steve Willoughby <steve@madscience.zone>
-** vi:set ai sm nu ts=4 sw=4:
 ** Licensing: BSD 3-clause open-source license
 **
 ** Simple busylight indicator, controlled via USB serial commands.
 ** To use, open the USB device as a serial port and send single 
 ** character commands to it:
 **
-**  X all lights off
-**  B only blue layer on
-**  G only green layer on
-**  Y only yellow layer on
-**  R only red layer #1 on
-**  2 only red layer #2 on
-**  ! only both red layers on
-**  # alternately flash red layers
-**  % alternately flash blue and red #2
+**  Fn...$	Flash one or more lights
+**  Sn		Turn on light #n steady
+**  *n...$	Strobe one or more lights (or none)
+**  X       All lights off
+**
+**  These legacy commands are still accepted as aliases for new commands:
+**  B == S0
+**  G == S4
+**  Y == S3
+**  R == S2
+**	2 == S1
+**  # == F12$
+**  % == F01$
+**
+** This legacy command is no longer supported (and was never a good idea):
+**  ! 
 **
 ** The alphabetic commands may be sent in either case.
 ** Any other bytes are simply ignored.
 **
 ** The physical LED tree is stacked like so:
+** The colors are suggested but they can be arbitrary.
 **
-**                    BLUE    ==================
+**                    BLUE    ==================	#0
 **                                    ||
-**                    RED 2   ==================
+**                    RED 2   ==================	#1
 **                                    ||
-**                    RED 1   ==================
+**                    RED 1   ==================	#2
 **                                    ||
-**                    YELLOW  ==================
+**                    YELLOW  ==================	#3
 **                                    ||
-**                    GREEN   ==================
+**                    GREEN   ==================	#4
 **                                    ||
+**                            ==================	#5
 **                                    ||
+**                            ==================	#6
 **                                    ||
 **                                    ||
 **                                    ||
@@ -40,64 +49,165 @@
 **                                    ||
 */
 
+#include <TimerEvent.h>
+
 //
 // Digital output pin numbers for the lights
 // (a high output turns on the LEDs)
+//                       BL R2 R1  Y  G
+const int tree_port[] = {10, 7, 6, 8, 9, 14, 16};
+
 //
-const int tree_green  = 9;
-const int tree_yellow = 8;
-const int tree_red_1  = 6;
-const int tree_red_2  = 7;
-const int tree_blue   = 10;
-//
-// tree_flash controls our two flashing modes.
-// if 0, no flashing is done and whatever light
-// is currently on (if any) stays steadily on.
-//
-// Otherwise, if set to 1 or 2, the two red lights
-// will alternately flash (tree_flash will bounce
-// between values 1 and 2 depending on which is
-// currently lit; setting its value back to 0 stops
-// the flashing).
-//
-// Likewise with values 3 and 4, which perform an
-// alternating flash between the top red and the blue
-// lights.
-//
-static int tree_flash = 0;
+// These LightBlinkers handle our flashing and strobing.
+// In each case, they sequence through one or more lights
+// at each flash.
+// 
+#define MAX_SEQUENCE (64)
+class LightBlinker {
+	unsigned int on_period;	  // in mS 
+	unsigned int off_period;  // in mS
+	bool         cur_state;	  // are we on?
+	unsigned int cur_index;   // index into sequence
+	unsigned int sequence_length;
+	byte         sequence[MAX_SEQUENCE];
+	TimerEvent   timer;
+
+public:
+	LightBlinker(unsigned int on, unsigned int off, void (*callback)(void));
+	void update(void);
+	void stop(void);
+	void append(int);
+	int  length(void);
+	void advance(void);
+	void start(void);
+};
+
+LightBlinker::LightBlinker(unsigned int on, unsigned int off, void (*callback)(void))
+{
+	timer.set(0, callback);
+	timer.disable();
+	cur_state = false;
+	cur_index = 0;
+	sequence_length = 0;
+	on_period = on;
+	off_period = off;
+}
+
+int LightBlinker::length(void)
+{
+	return sequence_length;
+}
+
+void LightBlinker::append(int v)
+{
+	if (sequence_length < MAX_SEQUENCE - 1) {
+		sequence[sequence_length++] = v;
+	}
+}
+
+void LightBlinker::advance(void)
+{
+	// If we have a sequence of one item, we will just flash that one on and off
+	// If we have no off_period, it's the same as the on_period
+	if (sequence_length < 2) {
+		if (cur_state) {
+			digitalWrite(tree_port[sequence[0]], LOW);
+			cur_state = false;
+			if (off_period > 0)
+				timer.setPeriod(off_period);
+		} else {
+			digitalWrite(tree_port[sequence[0]], HIGH);
+			cur_state = true;
+			if (off_period > 0)
+				timer.setPeriod(on_period);
+		}
+		return;
+	}
+	
+	// Otherwise we just change to the next light in the sequence
+	// If we have no off_period, just switch to the next one. Otherwise,
+	// only advance on the "on" transition, so we quickly flash each in
+	// turn.
+	if (sequence_length > MAX_SEQUENCE)
+		sequence_length = MAX_SEQUENCE;
+
+	if (off_period == 0) {
+		cur_state = true;
+		digitalWrite(tree_port[sequence[cur_index]], LOW);
+		cur_index = (cur_index + 1) % sequence_length;
+		digitalWrite(tree_port[sequence[cur_index]], HIGH);
+	}
+	else {
+		if (cur_state) {
+			digitalWrite(tree_port[sequence[cur_index]], LOW);
+			timer.setPeriod(off_period);
+			cur_state = false;
+		}
+		else {
+			cur_index = (cur_index + 1) % sequence_length;
+			digitalWrite(tree_port[sequence[cur_index]], HIGH);
+			timer.setPeriod(on_period);
+			cur_state = true;
+		}
+	}
+}
+
+void LightBlinker::update(void)
+{
+	timer.update();
+}
+
+void LightBlinker::stop(void)
+{
+	timer.disable();
+	sequence_length = 0;
+}
+
+void LightBlinker::start(void)
+{
+	if (sequence_length > 0) {
+		cur_index = 0;
+		cur_state = true;
+		digitalWrite(tree_port[sequence[0]], HIGH);
+		timer.reset();
+		timer.setPeriod(on_period);
+		timer.enable();
+	}
+	else {
+		stop();
+	}
+}
+
+void flash_lights(void);
+void strobe_lights(void);
+LightBlinker flasher(200, 0, flash_lights);
+LightBlinker strober(50, 2000, strobe_lights);
+
+#define COUNTOF(X) (sizeof(X)/sizeof(X[0]))
+	
 
 void setup() {
+	int i=0;
 	//
 	// digital output mode setting
 	//
-	pinMode(tree_green, OUTPUT);
-	pinMode(tree_yellow, OUTPUT);
-	pinMode(tree_red_1, OUTPUT);
-	pinMode(tree_red_2, OUTPUT);
-	pinMode(tree_blue, OUTPUT);
+	for (i = 0; i < COUNTOF(tree_port); i++) {
+		pinMode(tree_port[i], OUTPUT);
+	}
 	//
 	// Cycle through all the lights at power-on
 	// to test that they all work
 	//
-	all_off(true);
-	digitalWrite(tree_blue, HIGH);
-	delay(200);
-	all_off(true);
-	digitalWrite(tree_red_2, HIGH);
-	delay(200);
-	all_off(true);
-	digitalWrite(tree_red_1, HIGH);
-	delay(200);
-	all_off(true);
-	digitalWrite(tree_yellow, HIGH);
-	delay(200);
-	all_off(true);
-	digitalWrite(tree_green, HIGH);
-	delay(200);
-	all_off(true);
+	for (i = 0; i < COUNTOF(tree_port); i++) {
+		digitalWrite(tree_port[i], HIGH);
+		delay(200);
+		all_off(true);
+	}
 	//
 	// Our serial port will be 9600 baud
 	//
+	flasher.stop();
+	strober.stop();
 	Serial.begin(9600);
 }
 
@@ -106,13 +216,12 @@ void setup() {
 //
 void all_off(bool reset_state) {
 	if (reset_state) {
-		tree_flash = 0;
+		flasher.stop();
+		strober.stop();
 	}
-	digitalWrite(tree_green, LOW);
-	digitalWrite(tree_yellow, LOW);
-	digitalWrite(tree_red_1, LOW);
-	digitalWrite(tree_red_2, LOW);
-	digitalWrite(tree_blue, LOW);
+	for (int i=0; i < COUNTOF(tree_port); i++) {
+		digitalWrite(tree_port[i], LOW);
+	}
 }
 
 void loop() {
@@ -123,103 +232,168 @@ void loop() {
 	// it's perfectly fine to throw newlines in the
 	// stream).
 	//
-	while (Serial.available() > 0) {
-		switch (Serial.read()) {
-		case 'B':
-		case 'b':
-			all_off(true);
-			digitalWrite(tree_blue, HIGH);
+	flasher.update();
+	strober.update();
+
+	const int IDLE=0;		// not waiting for anything
+	const int SINGLETON=1;	// waiting for a single light ID
+	const int LIST=2;		// waiting for list of IDs
+
+	static byte state = IDLE;
+	static byte cmd = 0;	// command being parsed or 0
+
+	if (Serial.available() > 0) {
+		int inputvalue = Serial.read();
+			
+		switch (inputvalue) {
+		case 'S':
+		case 's':
+			state = SINGLETON;
+			cmd = (byte)inputvalue;
 			break;
-		case 'G':
-		case 'g':
-			all_off(true);
-			digitalWrite(tree_green, HIGH);
-			break;
-		case 'Y':
-		case 'y':
-			all_off(true);
-			digitalWrite(tree_yellow, HIGH);
-			break;
-		case 'R':
-		case 'r':
-			all_off(true);
-			digitalWrite(tree_red_1, HIGH);
-			break;
-		case '2':
-			all_off(true);
-			digitalWrite(tree_red_2, HIGH);
-			break;
-		case '!':
-			// WARNING: This is the only mode which turns on
-			// ======== two lights at once. That might push
-			//          the current drain too close to the
-			//          maximum output of some USB ports.
-			all_off(true);
-			digitalWrite(tree_red_1, HIGH);
-			digitalWrite(tree_red_2, HIGH);
-			break;
+
 		case 'X':
 		case 'x':
+			state = IDLE;
 			all_off(true);
 			break;
-		case '#':
-			tree_flash = 1;
-			break;
-		case '%':
-			tree_flash = 3;
-			break;
-		case '@':
-			tree_flash |= 0x40;
-			break;
-		}
-	}
-	//
-	// If we're in flashing mode, move to the next
-	// state and wait until time for the next state
-	// change. This should be fine as long as the 
-	// delays are very small, since we will wait
-	// that long before reading the next input
-	// from the serial port.
-	//
-	// tree_flash
-	//  -----001 -> -----010	red2->red1
-	//  -----010 -> -----001    red1->red2
-	//  -----011 -> -----100	red2->blue
-	//  -----100 -> -----011	blue->red2
-	//  -1------ -> -1------    flash green
-	//
-#define TREE_FLASH_GREEN	0x40
-#define TREE_FLASH_MODE		0x07
 
-	if ((tree_flash & TREE_FLASH_MODE) == 1) {
-		all_off(false);
-		tree_flash = (tree_flash & ~TREE_FLASH_MODE) | 2;
-		digitalWrite(tree_red_1, HIGH);
-		delay(200);
-		if (tree_flash & TREE_FLASH_GREEN) {
-			digitalWrite(tree_green, HIGH);
-			delay(50);
-			digitalWrite(tree_green, LOW);
+		case '*':
+			state = LIST;
+			strober.stop();
+			cmd = (byte)inputvalue;
+			break;
+
+		case 'F':
+		case 'f':
+			state = LIST;
+			flasher.stop();
+			cmd = (byte)inputvalue;
+			break;
+
+		case 'B':
+		case 'b':
+			state = IDLE;
+			all_off(true);
+			digitalWrite(tree_port[0], HIGH);
+			break;
+
+		case 'G':
+		case 'g':
+			state = IDLE;
+			all_off(true);
+			digitalWrite(tree_port[4], HIGH);
+			break;
+
+		case 'Y':
+		case 'y':
+			state = IDLE;
+			all_off(true);
+			digitalWrite(tree_port[3], HIGH);
+			break;
+
+		case 'R':
+		case 'r':
+		case '!':
+			state = IDLE;
+			all_off(true);
+			digitalWrite(tree_port[2], HIGH);
+			break;
+
+		case '2':
+			if (state == IDLE) {
+				state = IDLE;
+				all_off(true);
+				digitalWrite(tree_port[1], HIGH);
+				break;
+			}
+			// FALLTHRU
+
+		case '0':
+		case '1':
+		case '3':
+		case '4':
+		case '5':
+		case '6':
+			switch (state) {
+			case LIST:
+				if (cmd == 'f' || cmd == 'F') {
+					if (inputvalue >= '0' && inputvalue <= '6') 
+						flasher.append(inputvalue - '0');
+				}
+				else if (cmd == '*') {
+					if (inputvalue >= '0' && inputvalue <= '6') 
+						strober.append(inputvalue - '0');
+				}
+				else
+					state = IDLE;
+				break;
+
+			case SINGLETON:
+				if (cmd == 's' || cmd == 'S') {
+					all_off(false);
+					flasher.stop();
+					if (inputvalue >= '0' && inputvalue <= '6') {
+						digitalWrite(tree_port[inputvalue - '0'], HIGH);
+					}
+				}
+				state = IDLE;
+				break;
+			
+			default:
+				state = IDLE;
+			}
+			break;
+
+		case '\x1b':
+		case '$':
+			if (state == LIST) {
+				all_off(false);
+				if (cmd == 'f' || cmd == 'F') 
+					flasher.start();
+				else if (cmd == '*') 
+					strober.start();
+			}
+			state = IDLE;
+			break;
+
+		case '#':
+			state = IDLE;
+			all_off(true);
+			flasher.stop();
+			flasher.append(1);
+			flasher.append(2);
+			flasher.start();
+			break;
+
+		case '%':
+			all_off(true);
+			state = IDLE;
+			flasher.stop();
+			flasher.append(0);
+			flasher.append(1);
+			flasher.start();
+			break;
+
+		case '@':
+			state = IDLE;
+			strober.stop();
+			strober.append(4);
+			strober.start();
+			break;
+
+		default:
+			state = IDLE;
 		}
-	} else if ((tree_flash & TREE_FLASH_MODE) == 2) {		
-		all_off(false);
-		tree_flash = (tree_flash & ~TREE_FLASH_MODE) | 1;
-		digitalWrite(tree_red_2, HIGH);
-		delay(200);
-	} else if ((tree_flash & TREE_FLASH_MODE) == 3) {
-		all_off(false);
-		tree_flash = (tree_flash & ~TREE_FLASH_MODE) | 4;
-		digitalWrite(tree_blue, HIGH);
-		delay(200);
-	} else if ((tree_flash & TREE_FLASH_MODE) == 4) {
-		all_off(false);
-		tree_flash = (tree_flash & ~TREE_FLASH_MODE) | 3;
-		digitalWrite(tree_red_2, HIGH);
-		delay(200);
-	} else if (tree_flash & TREE_FLASH_GREEN) {
-		digitalWrite(tree_green, HIGH);
-		delay(50);
-		digitalWrite(tree_green, LOW);
-		delay(2000);
 	}
+}
+
+// flash a single light on/off, or sequence through a list at the on cadence.
+void flash_lights(void)
+{
+	flasher.advance();
+}
+void strobe_lights(void)
+{
+	strober.advance();
 }

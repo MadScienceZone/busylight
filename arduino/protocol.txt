@@ -64,14 +64,12 @@ X		Turn off all lights		X
 *<lights>$	Strobe lights in sequence	*4$ *34$ etc
 *$		Cancel strobe			*$
 F<lights>$	Flash lights in sequence	F12$ F012345$ etc
-B		alias for S0
-G		alias for S4
-R		alias for S2
-Y 		alias for S3
-#		alias for F12$			#
-%		alias for F01$			%
+B		alias for *$S0			B
+G		alias for *$S4			G
+R		alias for *$S2			R
+Y 		alias for *$S3			Y
+#		alias for *$F12$		#
+%		alias for *$F01$		%
 @		alias for *4$			@
-
-No longer accepted:
-2		
-!		
+2		alias for *$S1			2
+!		alias for *$S2			!
