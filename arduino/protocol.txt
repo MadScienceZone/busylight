@@ -19,3 +19,59 @@ newlines, etc. to the output stream if needed.
 
 The device is powered by the same USB cable. Ensure that the USB port can
 supply sufficient current for the lights you want to turn on.
+
+The legacy arrangement was:
+
+=====BLUE===== 0
+=====RED2===== 1
+=====RED1===== 2
+====YELLOW==== 3
+====GREEN===== 4
+
+Proposed new protocol allows for up to 7 lights of arbitrary colors:
+Lights are numbered 0-6:
+	Light#	I/O pin	DIN pin	Canonical Color
+	0	#10	5	blue
+	1	#6	3	red #1
+	2	#7	1	red #2
+	3	#8	4	yellow
+	4	#9	2	green
+	5	#14	6
+	6	#16	8
+
+Since we don't mandate colors in any positions, we refer to the lights only
+by their numbers in these commands. The command letter begins the command. 
+Commands which include an arbitrary number of light numbers are terminated
+by an escape (hex 1B, represented here by '$'). If a letter is found while waiting
+for arguments, the previous command being parsed is abandoned in favor of the new one.
+
+"flash" means to either flash a single light rapidly with 50% duty cycle
+or sequence between multiple lights. Our previous alternating effect is a 2-light
+flash now, but now you can pick any two lights. If three or more lights are
+listed, they are sequenced in the order listed.
+
+"strobe" means to flash one or more lights very briefly with a longer pause
+between flashes. You may have a strobe effect going along with a steady or
+flashing light.
+
+A steady light will stop a flashing sequence and vice-versa.
+Strobes are only stopped by giving an empty list to strobe or
+with the X command (which stops everything).
+
+COMMAND		DESCRIPTION			EXAMPLES
+S<light>	Turn on single light steady	S0 S5 etc
+X		Turn off all lights		X
+*<lights>$	Strobe lights in sequence	*4$ *34$ etc
+*$		Cancel strobe			*$
+F<lights>$	Flash lights in sequence	F12$ F012345$ etc
+B		alias for S0
+G		alias for S4
+R		alias for S2
+Y 		alias for S3
+#		alias for F12$			#
+%		alias for F01$			%
+@		alias for *4$			@
+
+No longer accepted:
+2		
+!		

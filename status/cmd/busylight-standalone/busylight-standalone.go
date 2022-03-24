@@ -1,6 +1,4 @@
 //
-// vi:set ai sm nu ts=4 sw=4:
-//
 // This is just a standalone tool I wrote while
 // experimenting with controlling the hardware.
 // It may be of use while building your own light
@@ -59,15 +57,24 @@ func main() {
 	defer port.Close()
 
 	switch {
-	case *red1:  send("R", port)
-	case *red2:  send("2", port)
-	case *reds:  send("!", port)
-	case *green: send("G", port)
-	case *blue:  send("B", port)
-	case *yellow:send("Y", port)
-	case *redred:send("#", port)
-	case *redblue:send("%", port)
-	case *off:    send("X", port)
+	case *red1:
+		send("R", port)
+	case *red2:
+		send("2", port)
+	case *reds:
+		send("!", port)
+	case *green:
+		send("G", port)
+	case *blue:
+		send("B", port)
+	case *yellow:
+		send("Y", port)
+	case *redred:
+		send("#", port)
+	case *redblue:
+		send("%", port)
+	case *off:
+		send("X", port)
 	}
 	if *low {
 		send("@", port)

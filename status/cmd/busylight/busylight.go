@@ -1,6 +1,4 @@
 //
-// vi:set ai sm nu ts=4 sw=4:
-//
 // CLI tool to control long-running daemon busylightd
 // by sending it these signals:
 //

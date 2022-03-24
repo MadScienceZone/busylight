@@ -1,6 +1,4 @@
 //
-// vi:set ai sm nu ts=4 sw=4:
-//
 // Steve Willoughby <steve@madscience.zone>
 // License: BSD 3-Clause open-source license
 //
