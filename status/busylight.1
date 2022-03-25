@@ -2,14 +2,22 @@
 .SH NAME
 busylight \- display busy/free status to passers-by
 .SH SYNOPSIS
+.na
 .B busylight
-.I state
+.RB [ \-cal ]
+.RB [ \-help ]
+.RB [ \-kill ]
+.RB [ \-mute ]
+.RB [ \-open ]
+.RB [ \-raw
+.IR command ]
+.RB [ \-reload ]
+.RB [ \-status 
+.IR name ]
+.RB [ \-wake ]
+.RB [ \-zzz ]
 .LP
 .B busylightd
-.LP
-.B busylight-standalone
-.RI [ options ]
-.I color
 .LP
 .B upcoming
 .SH OPTIONS
@@ -24,95 +32,58 @@ but options may not be abbreviated or combined.
 .LP
 The
 .B busylight
-CLI tool signals the daemon to manually assume a state change according to the option provided. Multiple
-.I state
-options may be given in a single invocation, but note that the signal will only report the most
-immediately-relevant state at any given time. It is safe to include
-.B \-\-reload
-with other states, but if two conflicting states are given (e.g.,
-.B \-\-mute
+manually sets the status display on the light device. If a daemon is
+running, it will attempt to notify the daemon for those states which
+it's also tracking 
+.RB ( \-cal ,
+.BR \-mute ,
 and
-.BR \-\-open ),
-it is undefined which will actually take effect.
-.TP 10
-.B \-\-cal
-Tell the daemon to return to reporting state based on calendar availability. (This signals that a Zoom call
+.BR \-open ),
+or for commands which directly manipulate the daemon itself
+.RB ( \-kill ,
+.BR \-reload ,
+.BR \-wake ,
+and
+.BR \-zzz ).
+.LP
+The options recognized include the following:
+.TP 14
+.B \-cal
+Tell the daemon to return to reporting state based on calendar availability. (This signals that a call
 has ended.)
 .TP
-.B \-\-kill
+.B \-help
+Summarize the command-line options and exit.
+.TP
+.B \-kill
 Tell the daemon to terminate immediately.
 .TP
-.B \-\-lowpri
-Tell the daemon that we should add a \*(lqlow-priority\*(rq marker on the light.
-This is a toggle; sending it again turns off the marker.
+.B \-mute
+Tell the daemon that we are in a call with the microphone muted.
 .TP
-.B \-\-mute
-Tell the daemon that we are in a Zoom call with the microphone muted.
+.B \-open
+Tell the daemon that we are in a call with the microphone open.
 .TP
-.B \-\-open
-Tell the daemon that we are in a Zoom call with the microphone open.
+.BI "\-raw " command
+Send the
+.I command
+string as-is to the light controller device. See below.
 .TP
-.B \-\-reload
+.B \-reload
 Force the daemon to re-poll the calendar service to get updates to the schedule rather than waiting for the
 next periodic poll time.
 .TP
-.B \-\-urgent
-Toggle flashing an urgent-status indication.
+.BI "\-status " name
+Set the light tree device to the status light pattern defined for the given
+.I name
+in the configuration file (does not notify the daemon).
+.TP
+.B \-wake
+Tell the daemon to come on line if it was sleeping. The Google calendars are polled and resulting
+status is displayed by the daemon.
 .TP
 .B \-\-zzz
-Toggle the active state of the daemon. If it was active, it turns off the signal light and stops polling the calendar service.
-Otherwise, it resumes active state, polls the calendar service and updates the signal light appropriately.
-.RS
-.LP
-See the description of the daemon's handling of the
-.B SIGWINCH
-signal for more details.
-.RE
-.SS busylight-standalone
-.LP
-The
-.B busylight-standalone
-program is intended more for testing the hardware than actual production use. It connects directly to
-a (hardcoded) port and commands the light device to display a color based on the option given, which must be one
-(and only one) of the following. Note that all other lights are turned off when making any of these changes.
-.TP 10
-.B \-\-blue
-Turn on the blue light.
-.TP
-.BI "\-\-device " name
-Use the named serial device.
-.TP
-.B \-\-green
-Turn on the green light.
-.TP
-.B \-\-list
-List the available ports on the system for use with the
-.B \-\-device
-option.
-.TP
-.B \-\-lowpri
-Add the low-priority signal to other indicators being displayed.
-.TP
-.B \-\-red
-Turn on the lower red light.
-.TP
-.B \-\-red2
-Turn on the upper red light.
-.TP
-.B \-\-redblue
-Flash the upper red light and the blue light alternately.
-.TP
-.B \-\-redred
-Flash both red lights alternately.
-.TP
-.B \-\-reds
-Turn on both red lights.
-.TP
-.B \-\-off
-Turn all lights off.
-.TP
-.B \-\-yellow
-Turn on the yellow light.
+Tells the daemon to go to sleep; turns off the signal light and stops polling the calendar service.
 .SH DESCRIPTION
 .LP
 The tools described here control a hardware status signal attached to the computer's USB port.
@@ -140,9 +111,6 @@ who comes in camera range may be visible to meeting participants).
 .TP
 flashing red
 In a conference call and the microphone is open, so any nearby sounds may be heard by all meeting participants.
-.TP
-flashing red/blue
-Indicates an urgent need for help.
 .RE
 .LP
 The actual monitoring of video meetings and microphone statuses is assumed to be done by some other automation
@@ -153,21 +121,14 @@ CLI tool. The author uses a hammerspoon script to accomplish this.
 See the SIGNALS section below for a description of how sending signals to the daemon affect its operation.
 The
 .B busylight
-CLI program is simply a convenient way to inform the daemon of a status change. It locates the daemon process and sends
-signal(s) to it according to the command-line flags passed to it.
-.LP
-When the daemon starts, it flashes the blue light twice. When exiting, it flashes the red light twice
-and then turns the light off completely.
+CLI program is a convenient way to inform the daemon of a status change as an alternative to sending
+signals directly to the daemon. It is also used to directly send commands to the light control device
+regardless of whether the daemon is running or not.
 .LP
 The
 .B upcoming
 program polls the Google calendars and displays to standard output the busy/free time ranges for the next
 8 hours.
-.LP
-Finally, the
-.B busylight-standalone
-program provides a way to test the light hardware without the daemon running. It opens the port directly
-and sends hardware commands to set the light displays as desired.
 .SH CONFIGURATION
 .LP
 These tools require a few files to be placed in the user's
@@ -328,7 +289,7 @@ An example configuration file would look like this:
 If using a regular expression for the device rather than a fixed name,
 the
 .B Device
-entry of the above JSON would be replaced with these two:
+entry of the above JSON might be replaced with these two:
 .RS
 .na
 .nf
@@ -420,25 +381,9 @@ is received at 3:45, the next poll will still take place at 4:05).
 .B INT
 Upon receipt of this signal, the daemon gracefully shuts down and terminates.
 .TP
-.B CHLD
-Toggles the low-priority indicator status. This causes the green lights to
-strobe at a low rate in addition to other lights.
-.TP
 .B VTALRM
-Toggles urgent indicator status. Initially it makes the light signal display an urgent flashing pattern.
-When received again, the daemon resumes normal display.
-.TP
-.B USR1
-The user is in a video conference with the microphone muted. The light signal is changed to reflect this.
-.TP
-.B USR2
-The user is in a video conference with the microphone open. The light signal is changed to reflect this.
-.TP
-.B WINCH
-Toggle whether the daemon is active or not. This is usually used to mark the start and end of the workday. When active,
-the daemon performs all of the functions documented here, polling the Google calendar hourly to pick up any changes
-to the schedule. When inactive, the light signal is shut off completely and the daemon stops polling the calendar service.
-Upon startup or resuming from inactive state, the daemon will immediately poll the calendar service, and will then
+Instructs the daemon to wake up from sleep state.
+The daemon will immediately poll the calendar service, and will then
 poll again an hour after that, and every hour thereafter.
 .RS
 .LP
@@ -449,9 +394,18 @@ without needing to completely restart the daemon. The PID and log files may
 not be changed without restarting the daemon completely. Also note that
 the API credentials for accessing Google calendars is not reloaded at
 this time. That also requires a full restart of the daemon process.
-.LP
-The serial port is closed while the daemon is in inactive state.
 .RE
+.TP
+.B USR1
+The user is in a video conference with the microphone muted. The light signal is changed to reflect this.
+.TP
+.B USR2
+The user is in a video conference with the microphone open. The light signal is changed to reflect this.
+.TP
+.B WINCH
+Put the daemon to sleep.
+This is usually used to mark the end of the workday. 
+The light signal is shut off completely and the daemon stops polling the calendar service.
 .SH AUTHOR
 .LP
 Steve Willoughby 
