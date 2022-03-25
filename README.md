@@ -47,9 +47,14 @@ There's a *busylight(1)* manual page included which explains the setup and opera
 A schematic of how I wired up the hardware is also included, although it's fairly trivial, and can be adjusted to suit your needs.
 
 # Release notes
-## Version 1.6 (WIP)
-Colors are now arbitrary and up to 7 are supported. New shield PCB introduced.
+## Version 1.6
+Colors are now arbitrary and up to 7 lights are supported. New shield PCB introduced.
 New protocol introduced to support more arbitrary light patterns.
+
+Removed superfluous `busylight-standalone` command. Now both `busylight` and `busylightd` can
+directly update the device since as of this version neither leaves the I/O
+port open all the time. In case of a collision, the programs will wait for the other to
+let go of the port before proceeding.
 
 ## Version 1.5
 Adds a low-priority indicator to be added in addition to the other
