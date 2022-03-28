@@ -80,6 +80,14 @@ func main() {
 		daemon = getDaemonProcess(&config)
 	}
 
+	if *Fwake {
+		if daemon == nil {
+			fmt.Printf("Warning: unable to find daemon, so I can't signal it.\n")
+		} else {
+			daemon.Signal(syscall.SIGVTALRM)
+		}
+	}
+
 	if *Fmute {
 		if daemon == nil {
 			fmt.Printf("Warning: unable to find daemon. Sending direct \"mute\" status\n")
@@ -110,22 +118,6 @@ func main() {
 		}
 	}
 
-	if *Fzzz {
-		if daemon == nil {
-			fmt.Printf("Warning: unable to find daemon, so I can't signal it.\n")
-		} else {
-			daemon.Signal(syscall.SIGWINCH)
-		}
-	}
-
-	if *Fwake {
-		if daemon == nil {
-			fmt.Printf("Warning: unable to find daemon, so I can't signal it.\n")
-		} else {
-			daemon.Signal(syscall.SIGVTALRM)
-		}
-	}
-
 	if *Fkill {
 		if daemon == nil {
 			fmt.Printf("Warning: unable to find daemon, so I can't signal it.\n")
@@ -153,4 +145,13 @@ func main() {
 			fmt.Printf("Warning: %v\n", err)
 		}
 	}
+
+	if *Fzzz {
+		if daemon == nil {
+			fmt.Printf("Warning: unable to find daemon, so I can't signal it.\n")
+		} else {
+			daemon.Signal(syscall.SIGWINCH)
+		}
+	}
+
 }
