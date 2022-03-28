@@ -47,6 +47,10 @@ There's a *busylight(1)* manual page included which explains the setup and opera
 A schematic of how I wired up the hardware is also included, although it's fairly trivial, and can be adjusted to suit your needs.
 
 # Release notes
+## Version 1.6.1
+Made a slight change to the order in which `busylight` sends commands to the daemon,
+so that `-wake` happens first in the sequence and `-zzz` happens last.
+
 ## Version 1.6
 Colors are now arbitrary and up to 7 lights are supported. New shield PCB introduced.
 New protocol introduced to support more arbitrary light patterns.
