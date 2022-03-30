@@ -59,6 +59,7 @@ func main() {
 	var Freload = flag.Bool("reload", false, "reload calendar data")
 	var Fstatus = flag.String("status", "", "set custom status by name")
 	var Fraw = flag.String("raw", "", "send raw command to device")
+	var Flist = flag.Bool("list", false, "list defined status codes")
 	var daemon *os.Process
 	flag.Parse()
 
@@ -74,6 +75,15 @@ func main() {
 		filepath.Join(thisUser.HomeDir, ".busylight/config.json"),
 		&config); err != nil {
 		fatal("Can't initialize: %v\n", err)
+	}
+
+	if *Flist {
+		fmt.Println("Defined status codes usable with the --status option:")
+		fmt.Println("CODE------  LIGHT-EFFECT")
+		for code, def := range config.StatusLights {
+			fmt.Printf("%-10s  %s\n", code, def)
+		}
+		return
 	}
 
 	if *Fmute || *Fopen || *Fcal || *Fzzz || *Fwake || *Fkill || *Freload {
