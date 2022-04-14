@@ -3,6 +3,8 @@ DIY computer "do not disturb" indicator
 
 This was a weekend project to see if I could take the stuff in my junk drawer and implement a simple light that would show my family members if it was safe to interrupt me without accidentally having their voices or faces appear in a meeting (this is during the work-at-home pandemic restrictions).
 
+**Note:** the new hardware PCB is experimental and still being tested.
+
 ## Operation
 The light is placed in a convenient and visible location, and displays lights to indicate my current "busy" state.
 This version of the Busylight project allows for up to 7 lights of arbitrary colors.

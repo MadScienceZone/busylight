@@ -1,4 +1,4 @@
-.TH BUSYLIGHT 1 1.5 19-Jun-2021 "User Commands"
+.TH BUSYLIGHT 1 1.7.1 06-Apr-2022 "User Commands"
 .SH NAME
 busylight \- display busy/free status to passers-by
 .SH SYNOPSIS
@@ -34,7 +34,7 @@ but options may not be abbreviated or combined.
 .LP
 The
 .B busylight
-manually sets the status display on the light device. If a daemon is
+command manually sets the status display on the light device. If a daemon is
 running, it will attempt to notify the daemon for those states which
 it's also tracking 
 .RB ( \-cal ,
@@ -89,7 +89,7 @@ in the configuration file (does not notify the daemon).
 Tell the daemon to come on line if it was sleeping. The Google calendars are polled and resulting
 status is displayed by the daemon.
 .TP
-.B \-\-zzz
+.B \-zzz
 Tells the daemon to go to sleep; turns off the signal light and stops polling the calendar service.
 .SH DESCRIPTION
 .LP
