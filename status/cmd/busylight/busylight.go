@@ -60,6 +60,7 @@ func main() {
 	var Fstatus = flag.String("status", "", "set custom status by name")
 	var Fraw = flag.String("raw", "", "send raw command to device")
 	var Flist = flag.Bool("list", false, "list defined status codes")
+	var Fquery = flag.Bool("query", false, "report current status of lights")
 	var daemon *os.Process
 	flag.Parse()
 
@@ -164,4 +165,48 @@ func main() {
 		}
 	}
 
+	if *Fquery {
+		if state, err := busylight.QueryStatus(&config, &devState, 0); err == nil {
+			fmt.Println("Current hardware status:")
+			fmt.Printf("  Raw response data: %v\n", state.RawResponse[:state.ResponseLength])
+			fmt.Print("  Individual LEDs:   ")
+			for _, on := range state.IsLightOn {
+				if on {
+					fmt.Print("X")
+				} else {
+					fmt.Print("-")
+				}
+			}
+			fmt.Print("\n")
+			showSequence("Flasher", state.Flasher)
+			showSequence("Strober", state.Strober)
+		} else {
+			fmt.Printf("Warning: %v\n", err)
+		}
+	}
+}
+
+func showSequence(name string, seq busylight.LightSequence) {
+	if len(seq.Sequence) > 0 {
+		fmt.Printf("  %s: ", name)
+		for _, led := range seq.Sequence {
+			fmt.Printf("%d", led)
+		}
+		if seq.IsOn {
+			fmt.Println(" (on)")
+		} else {
+			fmt.Println(" (off)")
+		}
+		fmt.Printf("  %*s  ", len(name), "")
+		for i, _ := range seq.Sequence {
+			if i == seq.SequenceIndex {
+				fmt.Println("^")
+				return
+			}
+			fmt.Print(" ")
+		}
+		fmt.Println("")
+	} else {
+		fmt.Printf("  %s disabled\n", name)
+	}
 }

@@ -80,6 +80,7 @@ public:
 	int  length(void);
 	void advance(void);
 	void start(void);
+	void report_state(void);
 };
 
 LightBlinker::LightBlinker(unsigned int on, unsigned int off, void (*callback)(void))
@@ -102,6 +103,22 @@ void LightBlinker::append(int v)
 {
 	if (sequence_length < MAX_SEQUENCE - 1) {
 		sequence[sequence_length++] = v;
+	}
+}
+
+void LightBlinker::report_state(void)
+{
+	// report state as cur_state (0 or 1) then "X" (off) or "<index>@<sequence>"
+	int i = 0;
+	Serial.write(cur_state ? '1' : '0');
+	if (sequence_length > 0) {
+		Serial.write(cur_index + '0');
+		Serial.write('@');
+		for (i = 0; i < sequence_length; i++) {
+			Serial.write(sequence[i] + '0');
+		}
+	} else {
+		Serial.write('X');
 	}
 }
 
@@ -222,6 +239,21 @@ void all_off(bool reset_state) {
 	for (int i=0; i < COUNTOF(tree_port); i++) {
 		digitalWrite(tree_port[i], LOW);
 	}
+}
+
+void report_state(void)
+{
+  int i = 0;
+
+  Serial.write('L');
+  for (i = 0; i < COUNTOF(tree_port); i++) {
+    Serial.write(digitalRead(tree_port[i]) == HIGH ? '1' : '0');
+  }
+  Serial.write('F');
+  flasher.report_state();
+  Serial.write('S');
+  strober.report_state();
+  Serial.write('\n');
 }
 
 void loop() {
@@ -381,6 +413,11 @@ void loop() {
 			strober.append(4);
 			strober.start();
 			break;
+
+    case '?':
+      state = IDLE;
+      report_state();
+      break;
 
 		default:
 			state = IDLE;

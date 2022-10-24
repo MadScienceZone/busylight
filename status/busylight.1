@@ -10,6 +10,7 @@ busylight \- display busy/free status to passers-by
 .RB [ \-list ]
 .RB [ \-mute ]
 .RB [ \-open ]
+.RB [ \-query ]
 .RB [ \-raw
 .IR command ]
 .RB [ \-reload ]
@@ -70,6 +71,9 @@ Tell the daemon that we are in a call with the microphone muted.
 .TP
 .B \-open
 Tell the daemon that we are in a call with the microphone open.
+.TP
+.B \-query
+Queries the hardware state and reports it to the user.
 .TP
 .BI "\-raw " command
 Send the
@@ -271,7 +275,7 @@ An example configuration file would look like this:
     "StatusLights": {
         "busy": "S3",
         "free": "S4",
-        "urgent": "F01"
+        "urgent": "F01$"
     },
     "Calendars": { 
         "primary": {

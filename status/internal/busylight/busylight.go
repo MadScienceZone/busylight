@@ -63,6 +63,34 @@ type DevState struct {
 	PortOpen     bool        // is `port` valid and open now?
 }
 
+const maxResponseLength = 128 // how much data can we read from the device?
+
+// LightStatus is the state the hardware device reported when queried.
+type LightStatus struct {
+	// The raw bytes received from the unit.
+	RawResponse []byte
+
+	// The LED status of each of the LEDs at the instant of the query.
+	IsLightOn []bool
+
+	// The number of valid bytes in RawResponse.
+	ResponseLength int
+
+	Flasher LightSequence
+	Strober LightSequence
+}
+
+type LightSequence struct {
+	// Is the light at the SequenceIndex currently lit?
+	IsOn bool
+
+	// Where in the flashing sequence are we now?
+	SequenceIndex int
+
+	// The sequence pattern of light numbers.
+	Sequence []byte
+}
+
 // lightSignal tells the hardware to signal a particular condition on the lights.
 // If `delay` is positive, we wait that long before returning, to make some trivial
 // multi-step (but very quick and short-lived) sequences easy to implement.
@@ -105,6 +133,135 @@ func RawLightSignal(config *ConfigData, devState *DevState, command string, dela
 		time.Sleep(delay)
 	}
 	return nil
+}
+
+func QueryStatus(config *ConfigData, devState *DevState, delay time.Duration) (LightStatus, error) {
+	var status LightStatus
+	var i int
+
+	if !devState.PortOpen {
+		if err := AttachToLight(config, devState); err != nil {
+			return status, err
+		}
+		defer DetachFromLight(devState)
+	}
+	devState.Port.Write([]byte{'?'})
+	inputbuf := make([]byte, maxResponseLength)
+	status.RawResponse = make([]byte, maxResponseLength)
+	status.ResponseLength = 0
+collectInput:
+	for {
+		devState.Logger.Printf("reading state data from device")
+		bytesRead, err := devState.Port.Read(inputbuf)
+		if err != nil {
+			return status, err
+		}
+		if bytesRead == 0 {
+			return status, fmt.Errorf("error reading from light module (EOF)")
+		}
+		devState.Logger.Printf("got %d byte%s, total %d", bytesRead,
+			func(n int) string {
+				if n == 1 {
+					return ""
+				}
+				return "s"
+			}(bytesRead),
+			bytesRead+status.ResponseLength)
+
+		for i = 0; i < bytesRead; i++ {
+			if status.ResponseLength >= maxResponseLength {
+				return status, fmt.Errorf("read more than %d bytes from light module", maxResponseLength)
+			}
+			if inputbuf[i] == '\n' {
+				if i != bytesRead-1 {
+					devState.Logger.Printf("read more bytes than expected (dropped)")
+				}
+				break collectInput
+			}
+			status.RawResponse[status.ResponseLength] = inputbuf[i]
+			status.ResponseLength++
+		}
+	}
+	//
+	// Response string is:
+	//                  sequence
+	//            index  __|___
+	//                | /      \
+	//                n@xxxxx...         n@xxxxx...
+	//    L011100...F0X                S0X             \n
+	//     \______/  | \
+	//        |      |  if no sequence
+	//      0=off  0=off
+	//      1=on   1=on
+	//    Each LED timer
+	//              |_________________|_____________|
+	//                   flasher         strober
+	//
+
+	devState.Logger.Printf("%d byte response from device: %v", status.ResponseLength, status.RawResponse[:status.ResponseLength])
+
+	if status.RawResponse[0] != 'L' {
+		return status, fmt.Errorf("invalid response from device: expected start of LED status")
+	}
+readLEDs:
+	for i = 1; i < status.ResponseLength; i++ {
+		switch status.RawResponse[i] {
+		case '0':
+			status.IsLightOn = append(status.IsLightOn, false)
+
+		case '1':
+			status.IsLightOn = append(status.IsLightOn, true)
+
+		case 'F':
+			break readLEDs
+
+		default:
+			return status, fmt.Errorf("invalid response from device: expected start of flasher status")
+		}
+	}
+	if i+3 >= status.ResponseLength {
+		return status, fmt.Errorf("invalid response from device: short data read")
+	}
+	status.Flasher.IsOn = status.RawResponse[i+1] == '1'
+	if status.RawResponse[i+2] == 'X' {
+		i += 3
+	} else {
+		status.Flasher.SequenceIndex = int(status.RawResponse[i+2] - '0')
+		if status.RawResponse[i+3] != '@' {
+			return status, fmt.Errorf("invalid response from device: expected @")
+		}
+
+		for i += 4; i < status.ResponseLength && status.RawResponse[i] != 'S'; i++ {
+			status.Flasher.Sequence = append(status.Flasher.Sequence, status.RawResponse[i]-'0')
+		}
+	}
+	if i+2 >= status.ResponseLength {
+		return status, fmt.Errorf("invalid response from device: short data read")
+	}
+	if status.RawResponse[i] != 'S' {
+		return status, fmt.Errorf("invalid response from device: expected start of strober status")
+	}
+	status.Strober.IsOn = status.RawResponse[i+1] == '1'
+	if status.RawResponse[i+2] == 'X' {
+		i += 3
+	} else {
+		status.Strober.SequenceIndex = int(status.RawResponse[i+2] - '0')
+		if i+3 >= status.ResponseLength {
+			return status, fmt.Errorf("invalid response from device: short data read")
+		}
+		if status.RawResponse[i+3] != '@' {
+			return status, fmt.Errorf("invalid response from device: expected @")
+		}
+
+		for i += 4; i < status.ResponseLength; i++ {
+			status.Strober.Sequence = append(status.Strober.Sequence, status.RawResponse[i]-'0')
+		}
+	}
+
+	if delay > 0 {
+		time.Sleep(delay)
+	}
+	return status, nil
 }
 
 func GetConfigFromFile(filename string, data *ConfigData) error {
