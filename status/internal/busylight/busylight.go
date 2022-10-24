@@ -22,6 +22,10 @@ type CalendarConfigData struct {
 // ConfigData holds the configuration specified by the user in the config.json file
 // as well as some run-time values we need to refer to throughout the run of the daemon.
 type ConfigData struct {
+	// A list of characters which indicate the colors implemented
+	// on this particular hardware device, starting with light #0.
+	Colors string
+
 	// A map of all Google calendars being monitored by the daemon.Calendars
 	// The key is the Google-provided calendar ID; the value is a CalendarConfigData
 	// structure describing what we want to do with that calendar.

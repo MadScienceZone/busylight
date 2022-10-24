@@ -1,4 +1,4 @@
-.TH BUSYLIGHT 1 1.7.1 06-Apr-2022 "User Commands"
+.TH BUSYLIGHT 1 1.8.1 24-Oct-2022 "User Commands"
 .SH NAME
 busylight \- display busy/free status to passers-by
 .SH SYNOPSIS
@@ -151,6 +151,14 @@ in that directory.
 This file provides all of the configuration parameters needed for the ongoing operation of the system.
 As the name implies, it is in JSON format, as a single object with the following fields:
 .TP 4
+.B Colors
+This is a string containing single-character names for each of the LEDs as implemented
+on your particular hardware device. For example, a light with three LEDs\(emred, yellow, and green\(emwith red in position #0 might be represented by a value of
+.BR \[dq]RYG\[dq] .
+These are used for reporting device status via the
+.B \-query
+option.
+.TP
 .B StatusLights
 This is a map which defines a symbolic name for each signal pattern you wish to
 display. You are not limited to only these patterns, but the advantage is that
@@ -272,6 +280,7 @@ An example configuration file would look like this:
 .nf
 .na
 {
+    "Colors": "BrRYG",
     "StatusLights": {
         "busy": "S3",
         "free": "S4",

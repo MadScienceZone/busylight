@@ -170,27 +170,35 @@ func main() {
 			fmt.Println("Current hardware status:")
 			fmt.Printf("  Raw response data: %v\n", state.RawResponse[:state.ResponseLength])
 			fmt.Print("  Individual LEDs:   ")
-			for _, on := range state.IsLightOn {
+			for i, on := range state.IsLightOn {
 				if on {
-					fmt.Print("X")
+					if i < len(config.Colors) {
+						fmt.Printf("%c", config.Colors[i])
+					} else {
+						fmt.Print("X")
+					}
 				} else {
 					fmt.Print("-")
 				}
 			}
 			fmt.Print("\n")
-			showSequence("Flasher", state.Flasher)
-			showSequence("Strober", state.Strober)
+			showSequence("Flasher", config, state.Flasher)
+			showSequence("Strober", config, state.Strober)
 		} else {
 			fmt.Printf("Warning: %v\n", err)
 		}
 	}
 }
 
-func showSequence(name string, seq busylight.LightSequence) {
+func showSequence(name string, config busylight.ConfigData, seq busylight.LightSequence) {
 	if len(seq.Sequence) > 0 {
 		fmt.Printf("  %s: ", name)
 		for _, led := range seq.Sequence {
-			fmt.Printf("%d", led)
+			if int(led) < len(config.Colors) {
+				fmt.Printf("%c", config.Colors[int(led)])
+			} else {
+				fmt.Printf("%d", led)
+			}
 		}
 		if seq.IsOn {
 			fmt.Println(" (on)")
