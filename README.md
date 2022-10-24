@@ -47,6 +47,9 @@ There's a *busylight(1)* manual page included which explains the setup and opera
 A schematic of how I wired up the hardware is also included, although it's fairly trivial, and can be adjusted to suit your needs.
 
 # Release notes
+## Version 1.8
+Added a `-query` option to `busylight` and corresponding firmware support to allow
+the user to ask the hardware which lights are on and what sequences are playing.
 ## Version 1.7
 Added a `-list` option to `busylight` which lists out all the defined status codes
 (from the configuration file) that the user can specify with the `-status` option.
