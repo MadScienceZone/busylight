@@ -87,7 +87,7 @@ func main() {
 		return
 	}
 
-	if *Fmute || *Fopen || *Fcal || *Fzzz || *Fwake || *Fkill || *Freload {
+	if *Fmute || *Fopen || *Fcal || *Fzzz || *Fwake || *Fkill || *Freload || *Fquery {
 		daemon = getDaemonProcess(&config)
 	}
 
@@ -167,6 +167,11 @@ func main() {
 
 	if *Fquery {
 		if state, err := busylight.QueryStatus(&config, &devState, 0); err == nil {
+			if daemon == nil {
+				fmt.Println("Daemon NOT running.")
+			} else {
+				fmt.Printf("Daemon running, pid=%v.\n", daemon.Pid)
+			}
 			fmt.Println("Current hardware status:")
 			fmt.Printf("  Raw response data: %v\n", state.RawResponse[:state.ResponseLength])
 			fmt.Print("  Individual LEDs:   ")

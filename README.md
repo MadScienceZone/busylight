@@ -47,6 +47,10 @@ There's a *busylight(1)* manual page included which explains the setup and opera
 A schematic of how I wired up the hardware is also included, although it's fairly trivial, and can be adjusted to suit your needs.
 
 # Release notes
+## Version 1.8.2
+Added an output line to the `-query` option to indicate whether the daemon is
+currently running or not.
+
 ## Version 1.8.1
 Added the ability to name the light colors for a more human-friendly output
 from the `-query` option.
