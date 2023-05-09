@@ -1,0 +1,92 @@
+.TH BLIGHT 1 1.9.1 09-May-2023 "User Commands"
+.SH NAME
+blight \- GUI frontend to busylight
+.SH SYNOPSIS
+.na
+.RB [ wish8.6 ]
+.B blight.tcl
+.ad
+.SH DESCRIPTION
+.LP
+The
+.B blight.tcl
+script is a simple GUI front-end to the
+.BR busylight (1)
+program. It provides an on-screen indication of the light status (helpful if you can't physically
+see the LEDs) and a row of buttons to click on to easily change the light status.
+.LP
+All of its operations are carried out by running the
+.B busylight
+program to do the work.
+.LP
+Every 5 minutes, it will query the state of the lights and update its on-screen indicator accordingly,
+but it will also do this when you manually change the status or click the
+.B refresh
+button.
+.LP
+Buttons are provided for each of the defined status values in your
+.B ~/.busylight/config.json
+file (except the
+.B start
+and
+.B stop
+statuses), as well as a series of buttons labelled
+.BR "server mute" ,
+.BR "server open" ,
+etc., which allow you to set the daemon's state.
+.LP
+.SH ACTIVITIES
+.LP
+.B Blight
+adds another feature not otherwise provided by
+.BR busylight .
+It allows for activity tracking. To use this feature, you will need to create a file
+called
+.B ~/.busylight/activities.json
+which contains a JSON array of objects, each of which has the following fields:
+.TP 9
+.B Name
+This should be a short (preferably one-word) name of the activity to be tracked.
+.TP
+.B Status
+This is a JSON array of string values. Each value is a set of arguments to
+.B busylight
+to set the lights appropriately for this activity. The words in the string value will be
+added to the command line; if more than one string is given,
+.B busylight
+will be invoked once for each string.
+.TP
+.B Elapsed
+An integer value giving the number of minutes spent so far on that activity.
+.LP
+An example
+.B activities.json
+file might look like this:
+.LP
+.na
+.nf
+[
+\ {"Name":"Meetings", "Status":["-open"], "Elapsed":0},
+\ {"Name":"Idle", "Status":["-status idle"], "Elapsed":12},
+\ {"Name":"Games", "Status":["-status busy","-status lowpri"],
+\ \ "Elapsed":120}
+]
+.fi
+.ad
+.LP
+The
+.B blight
+script will update this file with new 
+.B Elapsed
+values while activities are active.
+.LP
+To start an activity, click on its button. That will set the lights for the activity and
+start the timer to track time for that activity. Clicking other buttons will change lights
+but not change the running timer. Clicking another activity will stop the current one before
+starting the new activity. Clicking the
+.B "(stop activity)"
+button will stop the activity timer without starting a new one.
+.SH AUTHOR
+.LP
+Steve Willoughby 
+.I "<steve@madscience.zone>"

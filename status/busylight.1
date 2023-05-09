@@ -1,4 +1,4 @@
-.TH BUSYLIGHT 1 1.8.1 24-Oct-2022 "User Commands"
+.TH BUSYLIGHT 1 1.9.1 09-May-2023 "User Commands"
 .SH NAME
 busylight \- display busy/free status to passers-by
 .SH SYNOPSIS
@@ -159,6 +159,13 @@ These are used for reporting device status via the
 .B \-query
 option.
 .TP
+.B ColorValues
+This is an object mapping color letters as listed in the
+.B Colors
+field to actual color names or
+.BI # rrggbb
+values as accepted by tk.
+.TP
 .B StatusLights
 This is a map which defines a symbolic name for each signal pattern you wish to
 display. You are not limited to only these patterns, but the advantage is that
@@ -281,6 +288,13 @@ An example configuration file would look like this:
 .na
 {
     "Colors": "BrRYG",
+    "ColorValues": {
+    	"B": "blue",
+	"R": "red",
+	"r": "red",
+	"Y": "yellow",
+	"G": "green"
+    },
     "StatusLights": {
         "busy": "S3",
         "free": "S4",

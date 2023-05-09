@@ -18,12 +18,6 @@ close $f
 # Colors	stack of light colors
 # StatusLights	dict of status->command
 # 
-array set led_colors {
-	r	red
-	g	green
-	b	blue
-	y	yellow
-}
 
 
 set dev_state [dict create \
@@ -431,28 +425,32 @@ set level -1
 foreach color_code [split [dict get $config_data Colors] {}] {
 	set light(slot,[incr level]) $color_code
 	set light($level,widget) .l.$level
-	set light($color_code,on)  $led_colors([string tolower $color_code])
-	set light($color_code,off) [::tk::Darken $led_colors([string tolower $color_code]) 25]
+	set light($color_code,on)  [dict get $config_data ColorValues $color_code]
+	set light($color_code,off) [::tk::Darken [dict get $config_data ColorValues $color_code] 25]
 	pack [label .l.$level -text "                        " -background $light($color_code,off) -highlightbackground $light($color_code,on) -highlightthickness 2] -side top -pady 2
 }
 
 set i 0
 dict for {status cmd} [dict get $config_data StatusLights] {
 	global i
-	pack [button .b.$i -text $status -command "do_busylight -status $status"] -side top -fill x
+	if {$status ne {start} && $status ne {stop}} {
+		pack [button .b.$i -text $status -command "busylight -status $status"] -side top -fill x
+	}
 	incr i
 }
 set light(act,offset) $i
 foreach activity $activities {
 	set light($i,act,widget) .b.$i
 	set light($i,act,name) [dict get $activity Name]
-	pack [button .b.$i -text [dict get $activity Name] -command "start_activity [dict get $activity Name]" -foreground blue] -fill both
+	pack [button .b.$i -text [dict get $activity Name] -command "start_activity [list [dict get $activity Name]]" -foreground blue] -fill both
 	incr i
 }
+pack [button .b.$i -text {(stop activity)} -command "stop_timer" -foreground blue] -fill both
+incr i
 
 foreach name $std_commands(names) {
 	if $std_commands($name,server) {
-		pack [button .b.$i -text $name -command "do_busylight $std_commands($name,external)" -foreground red] -side top -fill x
+		pack [button .b.$i -text $name -command "busylight $std_commands($name,external)" -foreground red] -side top -fill x
 	} else {
 		pack [button .b.$i -text $name -command $std_commands($name,internal) -foreground red] -side top -fill x
 	}
@@ -463,3 +461,11 @@ foreach name $std_commands(names) {
 
 refresh_all $config_data dev_state
 _update_time_displays
+
+proc _periodic_refresh {} {
+	global config_data dev_state
+	refresh_all $config_data dev_state
+	after 300000 _periodic_refresh
+}
+
+after 300000 _periodic_refresh
