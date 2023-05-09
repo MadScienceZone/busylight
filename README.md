@@ -47,6 +47,10 @@ There's a *busylight(1)* manual page included which explains the setup and opera
 A schematic of how I wired up the hardware is also included, although it's fairly trivial, and can be adjusted to suit your needs.
 
 # Release notes
+## Version 1.9.0
+Added a simple GUI front-end which provides buttons to change status on the lights as well
+as simple time tracking of activities.
+
 ## Version 1.8.2
 Added an output line to the `-query` option to indicate whether the daemon is
 currently running or not.
