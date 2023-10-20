@@ -1,3 +1,8 @@
+## Version 1.10.0
+### Blight changes
+ * Added "Clear times" button and improved support for tracking activity times.
+ * Introduced 1 second delay before updating display to allow time for the light device to complete what it was supposed to do. 
+
 ## Version 1.9.1
 Improved blight script, also added `ColorValues` field to `config.json`.
 

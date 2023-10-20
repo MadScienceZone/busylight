@@ -160,6 +160,7 @@ foreach {name server external internal} {
 	{server reload} true {-reload} {}
 	{server zzz}    true {-zzz}    {}
 	{refresh}       false {} {refresh_all $config_data dev_state}
+	{clear times}   false {} clear_all
 } {
 	array set std_commands [list \
 		$name,server   $server \
@@ -198,6 +199,20 @@ proc _set_lights {dev_state} {
 set cur_activity {}
 set elapsed_time 0
 set timer_id {}
+proc clear_all {} {
+	global activities activity_file_name
+	set newactlist {}
+	foreach act $activities {
+		dict set act Elapsed 0
+		lappend newactlist $act
+	}
+	set activities $newactlist
+	_update_time_displays
+	save_activities $activity_file_name $activities
+}
+
+
+
 proc stop_timer {} {
 	global cur_activity timer_id activities elapsed_time activity_file_name
 	if {$timer_id ne {}} {
@@ -273,6 +288,7 @@ proc do_busylight {args} {
 proc busylight {args} {
 	global config_data dev_state
 	exec busylight {*}$args
+	after 1000
 	refresh_all $config_data dev_state
 }
 
@@ -450,9 +466,9 @@ incr i
 
 foreach name $std_commands(names) {
 	if $std_commands($name,server) {
-		pack [button .b.$i -text $name -command "busylight $std_commands($name,external)" -foreground red] -side top -fill x
+		pack [button .b.$i -text $name -command "busylight $std_commands($name,external)" -foreground #550000] -side top -fill x
 	} else {
-		pack [button .b.$i -text $name -command $std_commands($name,internal) -foreground red] -side top -fill x
+		pack [button .b.$i -text $name -command $std_commands($name,internal) -foreground #550000] -side top -fill x
 	}
 
 	set std_commands($name,widget) .b.$i
@@ -462,10 +478,26 @@ foreach name $std_commands(names) {
 refresh_all $config_data dev_state
 _update_time_displays
 
-proc _periodic_refresh {} {
-	global config_data dev_state
-	refresh_all $config_data dev_state
-	after 300000 _periodic_refresh
+proc _periodic_refresh {{sec 0}} {
+	global config_data dev_state refresh_timer std_commands timer_reset_value
+	if {$sec > 0} {
+		incr refresh_timer -$sec
+	}
+	if {$refresh_timer <= 0} {
+		refresh_all $config_data dev_state
+		set refresh_timer $timer_reset_value
+	}
+	$std_commands(refresh,widget) configure -text "refresh [format %d:%02d [expr int($refresh_timer/60)] [expr $refresh_timer % 60]]"
+	update
+	if {$refresh_timer > 60} {
+		after 60000 _periodic_refresh 60
+	} elseif {$refresh_timer > 10} {
+		after 10000 _periodic_refresh 10
+	} else {
+		after 1000 _periodic_refresh 1
+	}
 }
 
-after 300000 _periodic_refresh
+set refresh_timer 300
+set timer_reset_value 300
+_periodic_refresh

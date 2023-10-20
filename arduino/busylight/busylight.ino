@@ -430,6 +430,7 @@ void flash_lights(void)
 {
 	flasher.advance();
 }
+
 void strobe_lights(void)
 {
 	strober.advance();
