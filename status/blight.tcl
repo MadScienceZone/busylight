@@ -177,6 +177,14 @@ proc refresh_all {config_data dev_state} {
 	server_status_check $config_data
 }
 
+proc _blank_lights {} {
+	global light
+
+	for {set i 0} {[info exists light(slot,$i)]} {incr i} {
+		$light($i,widget) configure -background $light($light(slot,$i),off)
+	}
+}
+
 proc _set_lights {dev_state} {
 	upvar $dev_state state
 	global light
@@ -288,6 +296,8 @@ proc do_busylight {args} {
 proc busylight {args} {
 	global config_data dev_state
 	exec busylight {*}$args
+	_blank_lights
+	update
 	after 1000
 	refresh_all $config_data dev_state
 }
