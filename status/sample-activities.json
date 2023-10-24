@@ -1,0 +1,13 @@
+[{
+    "Name"    : "Games",
+    "Status"  : ["-status busy","-status lowpri"],
+    "Elapsed" : 0
+},{
+    "Name"    : "School",
+    "Status"  : ["-status busy"],
+    "Elapsed" : 0
+},{
+    "Name"    : "Meetings",
+    "Status"  : ["-mute"],
+    "Elapsed" : 98
+}]
