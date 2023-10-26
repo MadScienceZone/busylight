@@ -536,7 +536,7 @@ void report_device_state(void)
 	} else if (my_address < 16) {
 		Serial.write(my_address + '0');
 	} else {
-		Serial.write('?');
+		Serial.write('*');
 	}
 	Serial.write(EEPROM.read(EE_ADDR_USB_SPEED)); // USB speed
 #if COMMON_SERIAL_PORT
@@ -553,7 +553,7 @@ void report_device_state(void)
 	} else if (global_address < 16) {
 		Serial.write(global_address + '0');
 	} else {
-		Serial.write('?');
+		Serial.write('*');
 	}
 	Serial.write('$');	// end of settings
 	Serial.write(SERIAL_VERSION_STAMP);	// hardware version, firmware version, serial number

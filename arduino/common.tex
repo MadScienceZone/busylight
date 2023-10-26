@@ -1,0 +1,523 @@
+% @[10]@| Copyright © 1992–2023 by Steven L. Willoughby (AKA MadScienceZone)
+% @[11]@| steve@madscience.zone (previously AKA Software Alchemy),
+% @[12]@| Aloha, Oregon, USA. All Rights Reserved.
+% @[13]@| Distributed under the terms and conditions of the BSD-3-Clause
+% @[14]@| License as described in the accompanying LICENSE file distributed
+% @[15]@| with GMA.
+% @[16]@|
+% @[20]@| Redistribution and use in source and binary forms, with or without
+% @[21]@| modification, are permitted provided that the following conditions
+% @[22]@| are met:
+% @[23]@| 1. Redistributions of source code must retain the above copyright
+% @[24]@|    notice, this list of conditions and the following disclaimer.
+% @[25]@| 2. Redistributions in binary form must reproduce the above copy-
+% @[26]@|    right notice, this list of conditions and the following dis-
+% @[27]@|    claimer in the documentation and/or other materials provided
+% @[28]@|    with the distribution.
+% @[29]@| 3. Neither the name of the copyright holder nor the names of its
+% @[30]@|    contributors may be used to endorse or promote products derived
+% @[31]@|    from this software without specific prior written permission.
+% @[32]@|
+% @[33]@| THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND
+% @[34]@| CONTRIBUTORS “AS IS” AND ANY EXPRESS OR IMPLIED WARRANTIES,
+% @[35]@| INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+% @[36]@| MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+% @[37]@| DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS
+% @[38]@| BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY,
+% @[39]@| OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+% @[40]@| PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+% @[41]@| PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+% @[42]@| THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR
+% @[43]@| TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
+% @[44]@| THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+% @[45]@| SUCH DAMAGE.
+% @[46]@|
+% @[50]@| This software is not intended for any use or application in which
+% @[51]@| the safety of lives or property would be at risk due to failure or
+% @[52]@| defect of the software.
+%
+% Common manual typesetting macros
+% Steve Willoughby <steve@madscience.zone> 12/2009, updated constantly through 2017
+%
+% Provides the following (see below for more details)
+% COMMANDS:
+%  \acronym[*]{TEXT}                        Typeset TEXT as an acronym (\mc)  + index automatically unless *
+%  \Acronym[*]{CAPITAL}{TEXT}               Like acronym but typeset first arg in regular type (for capitalization)
+%  \ix{text}                                Typeset <text> plus do \index{<text>}
+%  \LJimg[opts]{filename}                   Include image (wraps \epsfig)  opts: width= etc
+%  \LJquote[*!][subtext]{[/@]author}{text}  Epigraph (*=wide, !=narrow)
+%  \LJquotex[subtext]{[/@]author}{text}{w}  Eipgraph (random paragraph width)
+%                                             {/author}  suppress indexing
+%                                             {@author}  suppress "Last, First"
+%                                             {x!y}      typeset x, index as y
+%                                             {x!}       typeset x, do not index
+%  \LJqindex*                               Suppress author indexing for next \LJquote
+%  \LJqindex{entry}                         Index next \LJquote as <entry>, typeset author as-is in \LJquote arg
+%  \LJversal{versal}{word+leader}           "Initial" paragraph after \LJstart
+%  \mc{TEXT}                                Set TEXT in medium caps
+%  \Qauthor[subtext]{author}                Give credit to author of quotation.
+%  \starsep[char]                           Decorative * * * * separator
+%  \strong{text}                            Typeset with strong emphasis
+%  \TM                                      Trademark symbol
+%  \URL{url}                                Set url name (tt font)
+%  \Var[*]{name}                            Variable (*=bracketed)
+%  \work[*]{title}                          Cited work name (Italics)  + index automatically unless *
+%
+% ENVIRONMENTS:
+%  SourceCode                               Print block of source code in a box
+%  Coding                                   Use |verbatim| and \Var in env
+%                                            also \Var* puts <> around variable name
+\documentclass[letterpaper,twoside,onecolumn,openright,final          ]{memoir}
+%    vs.       others...   oneside twocolumn openleft  draft showtrims
+%                          twoside onecolumn openany   ms
+%                                            openright final 
+%\usepackage{etex}
+%\reserveinserts{28}
+\usepackage{fontawesome}
+\usepackage{ifpdf}
+\usepackage{multirow}
+\usepackage{ifthen}
+\usepackage{relsize}
+\usepackage{environ}
+%\usepackage{bigfoot}
+\usepackage[normalem]{ulem}
+\usepackage{tcolorbox}
+\usepackage{suffix}
+\usepackage{wrapfig}
+\usepackage{menukeys}
+%\usepackage{epsfig}
+\usepackage{textcomp}
+\usepackage{lettrine}
+\usepackage{bytefield}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{bbding}
+\usepackage{substr}
+\usepackage[T1]{fontenc}
+\usepackage{tgschola}
+\usepackage{ucs}
+\usepackage{siunitx}
+\usepackage{colortbl}
+\usepackage{longtable}
+\usepackage{color}
+\usepackage{calc}
+\usepackage{graphicx}
+\usepackage{soul}
+\usepackage{xfrac}
+\usepackage{wallpaper}
+\usepackage{tikz}
+\usepackage{verbatim}
+\usepackage{algpseudocode}
+\usepackage{algorithm}
+\usepackage[colorlinks=true,linkcolor=blue]{hyperref}
+\usepackage{enumitem}
+\makeindex
+\newcommand\ix[1]{#1\index{#1}}
+%\makeglossary
+%\showindexmarks
+\nouppercaseheads
+%\hideindexmarks
+%
+% Page Layout Parameters
+%
+\setstocksize{11in}{8.5in}        % printing on letter stock  8.5x11
+%\settrimmedsize{234mm}{180mm}{*}  % trimmed paper dimensions ~7.5x9.5
+%
+% old sizes
+%
+%\settrimmedsize{234mm}{184mm}{*}  % trimmed paper dimensions ~7.5x9.5
+%\settrims{23mm}{35mm}             % offset into stock of trimmed paper
+%\settypeblocksize{182mm}{32pc}{*} % dimensions of type block
+%\setlrmargins{*}{27mm}{*}         % margins 27mm from outer edge
+%\setulmargins{*}{27mm}{*}         % margins 27mm from bottom edge
+%\setheaderspaces{*}{12mm}{*}      % 12mm between header and text baselines
+%\setmarginnotes{5mm}{15mm}{2mm}   % margin notes 15mm wide, 5mm from text, 2mm from each other
+%
+% new sizes
+%
+%%\settrimmedsize{257mm}{178mm}{*}  % trimmed paper dimensions 
+%\settrimmedsize{257mm}{180.5mm}{*}% trimmed paper dimensions 
+%%\settrims{12mm}{40mm}             % offset into stock of trimmed paper
+%\settrims{12mm}{37mm}             % offset into stock of trimmed paper
+%\settypeblocksize{205mm}{31pc}{*} % dimensions of type block
+%\setlrmargins{*}{27mm}{*}         % margins 27mm from outer edge
+%\setulmargins{*}{27mm}{*}         % margins 27mm from bottom edge
+%\setheaderspaces{*}{12mm}{*}      % 12mm between header and text baselines
+%\setmarginnotes{5mm}{15mm}{2mm}   % margin notes 15mm wide, 5mm from text, 2mm from each other
+\fixpdflayout
+%
+\trimFrame
+\checkandfixthelayout
+
+  \definecolor{chapterboxcolor}{rgb}{.647,.129,.149}%
+%\newcommand\defaultchaptercolor{%
+%  \definecolor{chapterboxcolor}{rgb}{.051,.278,.631}%
+%}
+%\defaultchaptercolor
+\makeatletter
+\newlength\dlf@normtxtw
+\setlength\dlf@normtxtw{\textwidth}
+\def\myhelvetfont{\def\fdefault{mdput}}
+\newsavebox{\feline@chapter}
+\newcommand\feline@chapter@marker[1][4cm]{%
+\sbox\feline@chapter{%
+\resizebox{!}{#1}{\fboxsep=1pt%
+%\colorbox{chapterboxcolor}{\color{white}\bfseries\sffamily\thechapter}%
+\colorbox{chapterboxcolor}{\color{white}\bfseries\thechapter}%
+}}%
+\rotatebox{90}{%
+\resizebox{%
+\heightof{\usebox{\feline@chapter}}+\depthof{\usebox{\feline@chapter}}}%
+{!}{\scshape\so\@chapapp}}\quad%
+\raisebox{\depthof{\usebox{\feline@chapter}}}{\usebox{\feline@chapter}}%
+}
+\newcommand\feline@chm[1][4cm]{%
+\sbox\feline@chapter{\feline@chapter@marker[#1]}%
+\makebox[0pt][l]{% aka \rlap
+\makebox[1cm][r]{\usebox\feline@chapter}%
+}}
+\makechapterstyle{daleif1}{
+\renewcommand\chapnamefont{\normalfont\Large\scshape\raggedleft\so}
+\renewcommand\chaptitlefont{\normalfont\huge\bfseries\scshape\color{chapterboxcolor}}
+\renewcommand\chapternamenum{}
+\renewcommand\printchaptername{}
+\renewcommand\printchapternum{\null\hfill\feline@chm[2.5cm]\par}
+\renewcommand\afterchapternum{\par\vskip\midchapskip}
+\renewcommand\printchaptertitle[1]{\chaptitlefont\raggedleft ##1\par}
+}
+\makeatother
+\chapterstyle{daleif1}
+
+
+%\chapterstyle{veelo}
+%\stockletter      % 8.5 x 11  in stock paper size
+%\pagestatement    % 8.5 x 5.5 in page size
+%\settrimmedsize{9in}{6in}{*}
+%\settrims{1in}{1.25in}
+%\setlrmarginsandblock{.5in}{.5in}{*}
+%\setulmarginsandblock{1in}{1in}{*}
+%\trimFrame
+%\quarkmarks
+%
+% Footnote Setup
+%
+%
+% Fix table of contents spacing
+% @pnumwidth [1.55em] width of box holding page numbers in TOC
+% @tocrmarg  [2.55em] title text indentation from right margin
+% @dotsep    [4.5]    math units of space between TOC leader dots.
+%
+\makeatletter
+\renewcommand{\@pnumwidth}{2.5em}
+\makeatother
+%
+%
+\begin{document}
+\setlength{\epigraphrule}{0pt}
+\newcommand\Qauthor[2][]{%
+  \\%
+  \textnormal{---#2%
+    \ifthenelse{\equal{#1}{}}{}{%
+      \\%
+      {\footnotesize #1}%
+    }%
+  }%
+}
+%
+% Indexing
+% \ix{<text>} typesets <text> and indexes it too (identical in both
+%             cases--to get something different, use \index explicitly).
+%
+% \LJquote[subtext]{author}{quote text}
+%    Epigraph (a single quote).  The optional subtext is set smaller
+%    in upright shape under the author.  Authors are given an em-dash
+%    in caps and small caps fully flush right.  The quote text itself
+%    is in Italics in a 40% width paragraph which is itself against the
+%    right margin.
+%
+%    The author's name is indexed.  The following special syntax is
+%    recognized for the {author} parameter:
+%XXX    <text>      - index <text> after trying to change* to Lastname, First
+%XXX    @<text>     - index <text> as-is*
+%XXX    /<text>     - typeset <text> but do NOT index (use \index manually)
+%
+%XXX    <text>!<i>  - typeset as <text>, index as <i> using all the usual
+%                     indexing controls in <i>.
+%XXX    <text>!     - typeset <text> but do NOT index.
+%
+%    (*These functions are handled by external scripts which prepare the
+%    indexes)
+%
+% \LJquote*[subtext]{author}{quote text}
+%    Alternative for wider quotations (uses 60% width).
+%
+% \LJquote![subtext]{author}{quote text}
+%    Alternative for narrow quotations (uses 25% width).
+%
+% \LJquotex[subtext]{author}{quote text}{width}
+%    Extended and generalized form allowing you to specify your own
+%    paragraph width.
+%
+% \index{...}	Index 
+%				entry
+%				entry!subentry
+%				entry!subentry!subsubentry
+%				entry@formatted-entry
+%				entry|command			page# in \command{...}
+%				entry|see {other-entry}
+%				entry|seealso{other-entry}
+%				entry@form!sub@form
+%				entry|(   ... entry|)    	mark page range
+%				"! "@ "| ""			literal !, @, |, "
+%
+           \newcommand\LJquote[3][]{\LJquotex[#1]{#2}{#3}{0.400\textwidth}}
+\WithSuffix\newcommand\LJquote*[3][]{\LJquotex[#1]{#2}{#3}{0.60\textwidth}}
+\WithSuffix\newcommand\LJquote![3][]{\LJquotex[#1]{#2}{#3}{0.25\textwidth}}
+%
+\newcommand\SuppressLjQuoteIndexing{norm}
+\newcommand\LJqindex[1]{%
+%  \index[quotes]{#1}%
+  \index{$1}%
+  \renewcommand\SuppressLjQuoteIndexing{nil}%
+}
+\WithSuffix\newcommand\LJqindex*{\renewcommand\SuppressLjQuoteIndexing{nil}}
+
+\newcommand\LJquotex[4][]{%
+  \setlength{\epigraphwidth}{#4}%
+  \ifthenelse{\equal{\SuppressLjQuoteIndexing}{norm}}{%
+    %\index[quotes]{#2}%
+    \index{#2}%
+    \IfCharInString{@}{#2}{%
+      \IfBeforeSubStringEmpty{@}{#2}{%
+%        \def\LJqAuthor{\BehindSubString{@}{#2}}%
+	 \def\LJqAuthor{#2}%
+      }{%
+        \def\LJqAuthor{#2}%
+      }%
+    }{%
+      \def\LJqAuthor{#2}%
+    }%
+  }{%
+    \renewcommand\SuppressLjQuoteIndexing{norm}%
+    \def\LJqAuthor{#2}%
+  }%
+  \ifthenelse{\equal{\LJqAuthor}{}}{%
+    \epigraph{{\em #3}}{}}{
+    \ifthenelse{\equal{#1}{}}{%
+      \epigraph{{\em #3}}{{---\LJqAuthor}}%
+    }{%
+      \epigraph{{\em #3}}{{---\LJqAuthor}\\
+{\footnotesize #1}}%
+    }%
+  }%
+}
+
+% \LJqindex*    Do not index author name at all for next quote
+% \LJqindex{@i} Use <i> as index entry for next \LJquote
+% \LJqindex{i}  Use <i> as index entry for next \LJquote, changing to Last, First format
+% \LJquote[work]{author}{text}  Set quote and index author in Last, First format
+% \LJquote[work]{@author}{text} Set quote and index author as-is
+
+\maxsecnumdepth{chapter}
+% SourceCode environment:
+%   Typesets source code in a verbatim box.
+%
+\newenvironment{SourceCode}{\boxedverbatim}{\endboxedverbatim}
+\newenvironment{SourceCode*}{\begin{tcolorbox}\verbatim}{\endverbatim\end{tcolorbox}}
+%
+% Coding environment:
+%   Code verbatim inside |bars|
+%   Variables in \Var[*]{...} command  * form uses <> brackets around name
+%
+% Coding* puts the text in a colored box
+% Coding! is like Coding* but uses ` instead of | to toggle verbatim text
+% Coding: is like Coding! but is flush left
+%   
+\newenvironment{Coding}{\MakeShortVerb{\|}}{\DeleteShortVerb{\|}}
+\newenvironment{Coding*}{\begin{tcolorbox}\MakeShortVerb{\|}}{\DeleteShortVerb{\|}\end{tcolorbox}}
+\newenvironment{Coding!}{\begin{tcolorbox}\MakeShortVerb{\`}}{\DeleteShortVerb{\`}\end{tcolorbox}}
+\newenvironment{Coding:}{\begin{tcolorbox}\MakeShortVerb{\`}\begin{flushleft}}{\end{flushleft}\DeleteShortVerb{\`}\end{tcolorbox}}
+\newcommand\Var[1]{{\itshape #1\/}}
+\WithSuffix\newcommand\Var*[1]{$\langle${\itshape #1\/}$\rangle$}
+%
+% \LJversal{versal}{first word(s)}
+%   Begin a chapter paragraph.  This is just like \LJstart but without the
+%   meta-post information being printed.
+%   (In fact, \LJstart calls \LJversal to do the initial text.)
+%
+\newcommand\LJversal[2]{%
+ \ifthenelse{\equal{#1}{A}}{%
+  \lettrine[lines=3,findent=-1.1em,nindent=.9em,slope=.6em]{#1}{#2}%---------------A
+ }{%
+  \ifthenelse{\equal{#1}{B}}{%
+   \lettrine[lines=3,findent=-.4em]{#1}{#2}%---------------------------------------B
+  }{%
+   \ifthenelse{\equal{#1}{C}}{%
+    \lettrine[lines=3,findent=-.2em]{#1}{#2}%--------------------------------------C
+   }{%
+    \ifthenelse{\equal{#1}{D}}{%
+     \lettrine[lines=3,findent=-.4em]{#1}{#2}%-------------------------------------D
+    }{%
+     \ifthenelse{\equal{#1}{E}}{%
+      \lettrine[lines=3,findent=-.2em]{#1}{#2}%------------------------------------E
+     }{%
+      \ifthenelse{\equal{#1}{G}}{%
+       \lettrine[lines=3,findent=-.3em]{#1}{#2}%-----------------------------------G
+      }{%
+       \ifthenelse{\equal{#1}{I}}{%
+        \lettrine[lines=3,findent=-.1em]{#1}{#2}%----------------------------------I
+       }{%
+        \ifthenelse{\equal{#1}{K}}{%
+         \lettrine[lines=3,findent=+.1em]{#1}{#2}%---------------------------------K
+        }{%
+         \ifthenelse{\equal{#1}{L}}{%
+          \lettrine[lines=3,findent=-1.1em,nindent=1.5em]{#1}{#2}%-----------------L
+         }{%
+          \ifthenelse{\equal{#1}{O}}{%
+           \lettrine[lines=3,findent=-.3em]{#1}{#2}%-------------------------------O
+          }{%
+           \ifthenelse{\equal{#1}{Q}}{%
+            \lettrine[lines=3,findent=-.3em]{#1}{#2}%------------------------------Q
+           }{%
+            \ifthenelse{\equal{#1}{R}}{%
+             \lettrine[lines=3,findent=-.3em]{#1}{#2}%-----------------------------R
+            }{%
+             \ifthenelse{\equal{#1}{S}}{%
+              \lettrine[lines=3,findent=-.2em]{#1}{#2}%----------------------------S
+             }{%
+              \ifthenelse{\equal{#1}{V}}{%
+               \lettrine[lines=3,findent=+.1em,nindent=0em,slope=-.5em]{#1}{#2}%---V
+              }{%
+               \ifthenelse{\equal{#1}{W}}{%
+                \lettrine[lines=3,nindent=-.1em,slope=-.4em]{#1}{#2}%--------------W
+               }{%
+                \ifthenelse{\equal{#1}{Y}}{%
+                 \lettrine[lines=3,findent=+.1em,nindent=0em,slope=-.5em]{#1}{#2}%-Y
+                }{%
+                 \lettrine[lines=3]{#1}{#2}%---------------------------------------*
+	        }%
+               }%
+	      }%
+	     }%
+            }%
+           }%
+          }%
+         }%
+        }%
+       }%
+      }%
+     }%
+    }%
+   }%
+  }%
+ }%
+}
+
+%
+% \LJimg[options]{filename}
+%   Place an inline EPS image here in the text (this needs refinement)
+%
+\newcommand\LJimg[2][]{%
+  \ifthenelse{\equal{#2}{}}{%
+    \emph{XXX Image? #1 #2}%
+    \typeout{Missing image name in LJimg!}%
+  }{%
+    \ifthenelse{\boolean{pdf}}{%
+      \ifthenelse{\equal{#1}{}}{%
+        %\epsfig{file=images/#2, width=\textwidth}%
+	\includegraphics[width=\textwidth]{images/#2}%
+      }{%
+        %\epsfig{file=images/#2, #1}%
+	\includegraphics[#1]{images/#2}%
+      }%
+    }{%
+      \ifthenelse{\equal{#1}{}}{%
+        %\epsfig{file=eps/#2.eps, width=\textwidth}%
+	\includegraphics[width=\textwidth]{eps/#2.eps}%
+      }{%
+        %\epsfig{file=eps/#2.eps, #1}%
+	\includegraphics[#1]{eps/#2.eps}%
+      }%
+    }%
+  }%
+}% 
+%
+%
+% \URLref[*][text]{url}
+%   Refer to a URL somehow (as <a href="url">text</a> would have been)
+%   Starred form uses 2nd level of footnotes (for use within a footnote)
+%
+\newcommand\URLref[2][]{#1\footnote{\URL{#2}}}
+\WithSuffix\newcommand\URLref*[2][]{#1\footnoteB{\URL{#2}}}
+%
+% \acronym{letters}
+% \mc{letters}
+%   Typesets all-caps in slightly smaller font.  \mc just does the
+%   typesetting, while \acronym also adds an entry in the main index
+%   for the term (maybe someday we'll add to the glossary as well).
+%
+\newcommand\acronym[1]{{\smaller #1}\index{#1@\acronym*{#1}}}
+\newcommand\Acronym[2]{#1{\smaller #2}\index{#1#2@#1{\smaller#2}}}
+\WithSuffix\newcommand\acronym*[1]{{\smaller #1}}
+\WithSuffix\newcommand\Acronym*[2]{#1{\smaller #2}}
+\newcommand\mc[1]{{\smaller #1}}
+%
+% \starsep[symbol]
+%   Star paragraph section separator.  The default symbol is
+%   a fancy asterisk from the dingbats font.
+%
+\newcommand\starsep[1][\Asterisk]{
+	\medskip
+	\centerline{#1\qquad#1\qquad#1\qquad#1}
+	\medskip
+}
+
+%
+% unfinished
+%
+%\tracingmacros=1
+\newcommand\strong[1]{{\bfseries #1}}
+\newcommand\TM{\texttrademark}
+\newcommand\work[1]{\emph{#1}\index{#1@\work*{#1}}}
+\WithSuffix\newcommand\work*[1]{\emph{#1}}
+\WithSuffix\newcommand\work:[2]{\work*{#1}\index{#2@\work*{#2}}}
+%\WithSuffix\newcommand\worki[2]{\emph{#1 #2}\index{#2, #1@\emph{#2, #1}}}
+\newcommand\URL[1]{{\ttfamily #1}}
+
+\newenvironment{LJwrapimg}[3]{%
+ \begingroup\setlength\intextsep{0pt}%
+  \begin{wrapfigure}{#1}{#2}%
+   \LJimg[width=#2]{#3}%
+  \end{wrapfigure}%
+}{%
+ \par\endgroup%
+}
+
+\newcommand\z[1]{{\ttfamily#1}}
+\newcommand\zb[1]{{\ttfamily\bfseries#1}}
+
+% Based on post from tex.stackexchange.com from Gonzalo Medina
+%\newlength\widest
+%\makeatletter
+%\NewEnviron{ldescription}{%
+% \vbox{%
+%  \global\setlength\widest{0pt}%
+%  \def\item[##1]{%
+%   \settowidth\@tempdima{\textbf{##1}}%
+%   \ifdim\@tempdima>\widest\global\setlength\widest{\@tempdima}\fi%
+%  }%
+%  \setbox0=\hbox{\BODY}%
+% }
+% \begin{description}[
+%   leftmargin=\dimexpr\widest+0.5em\relax,
+%   labelindent=0pt,
+%   labelwidth=\widest]
+%  \BODY
+%  \end{description}%
+%}
+%\makeatother
+\newenvironment{ldescription}[1]{\begin{description}[leftmargin=#1+.5em,labelindent=0pt,labelwidth=#1]}{\end{description}}
+%
+% the NewContent environment shows material recently added to the document.
+%
+\newenvironment{NewContent}{\begingroup\color{blue}}{\endgroup}
