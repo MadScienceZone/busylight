@@ -733,10 +733,16 @@ void CommandStateMachine::accept(int inputchar, bool from_485) {
 					state = StrobeState; 
 					break;
 				case '=': 
+					if (source_485) {
+						error();
+						break;
+					}
 					state = SetState; 
 					break;
 				case '?': 
-					report_LED_state();
+					if (!source_485) {
+						report_LED_state();
+					}
 					end_cmd();
 					break;
 				case 'f':
@@ -745,7 +751,9 @@ void CommandStateMachine::accept(int inputchar, bool from_485) {
 					break;
 				case 'q':
 				case 'Q':
-					report_device_state();
+					if (!source_485) {
+						report_device_state();
+					}
 					end_cmd();
 					break;
 				case 's':
