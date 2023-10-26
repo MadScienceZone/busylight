@@ -91,8 +91,8 @@ for the full set of licensing terms.
 %
 \chapter{Protocol Description}\label{chap:protocol}
 {\setlength{\epigraphwidth}{.5\textwidth}
-\epigraph{I don't stand on protocol. Just call me your Excellency.}{---Henry Kissinger}}
-\LJversal{T}{he control protocol} used to display information on the busylight device is very simple.
+\epigraph{Protocol is etiquette with a government expense account.}{---Judith Martin}}
+\LJversal{T}{he protocol} used to control the busylight device is very simple.
 Commands are expressed largely in plain \ascii\ characters and are executed immediately
 as they are received.\footnote{Technically, they may even be executed \emph{while} they
 are being received.}
@@ -168,20 +168,32 @@ with a multi-byte code:
 		\bitbox[tbr]{1}{\z1}&
 		\bitbox{4}{\Var*{ad$_G$}}\\
 		\bitbox{1}{\z0}&
-		\bitbox{3}{\color{reservedslot}\rule{\width}{\height}}&
-		\bitbox{4}{\Var*{n}}\\
+%		\bitbox{3}{\color{reservedslot}\rule{\width}{\height}}&
+%		\bitbox{4}{\Var*{n}}\\
 		\bitbox{1}{\z0}&
-		\bitbox{3}{\color{reservedslot}\rule{\width}{\height}}&
-		\bitbox{4}{\Var*{ad$_0$}}\\
+		\bitbox{6}{\Var*{n}}\\
+		\bitbox{1}{\z0}&
+%		\bitbox{3}{\color{reservedslot}\rule{\width}{\height}}&
+%		\bitbox{4}{\Var*{ad$_0$}}\\
+		\bitbox{1}{\z0}&
+		\bitbox{6}{\Var*{ad$_0$}}\\
 		\bitbox[]{8}{$\vdots$\strut}\\
 		\bitbox{1}{\z0}&
-		\bitbox{3}{\color{reservedslot}\rule{\width}{\height}}&
-		\bitbox{4}{\Var*{ad$_{n-1}$}}
+%		\bitbox{3}{\color{reservedslot}\rule{\width}{\height}}&
+%		\bitbox{4}{\Var*{ad$_{n-1}$}}
+		\bitbox{1}{\z0}&
+		\bitbox{6}{\Var*{ad$_{n-1}$}}
 	\end{bytefield}
 \end{center}
 where \Var*{ad$_G$} is the ``global'' device address which signals busylight units
 generally (see the \z= command below).
 This will send to the \Var*{n} devices addressed as \Var*{ad$_0$} through \Var*{ad$_{n-1}$}.
+
+Note that the address of a unit is constrained to four bits (values 0--15) in the regular
+command header, but the address values listed here are seven bits wide (values 0--63).
+This allows you to give busylight devices address above 15, but if you do this, then
+this multiple-target header must be used to send commands to them, since their addresses
+won't fit in the shorter single-byte header.
 
 \subsubsection{All Off}
 As a special case, the single byte
@@ -297,8 +309,9 @@ This command sets a few operational parameters for the unit. Once set, these wil
 power cycles and reboots.
 
 If the \Var*{ad} parameter is ``\z{\_}'' then the RS-485 interface is disabled entirely. Otherwise it is a
-value from 0--15 encoded as described in Table~\ref{tbl:int063}. This enables the RS-485 interface and assigns
-this unit's address to \Var*{ad}.
+value from 0--63 encoded as described in Table~\ref{tbl:int063}. This enables the RS-485 interface and assigns
+this unit's address to \Var*{ad}. Note that if you assign an address greater than 15 you can only address
+the unit via multiple-target headers or via the global address.
 
 The baud rate for the \acronym{USB} and RS-485 interfaces is set by the \Var*{uspd} and \Var*{rspd} values
 respectively. Each is encoded as per Table~\ref{tbl:baudcodes}.

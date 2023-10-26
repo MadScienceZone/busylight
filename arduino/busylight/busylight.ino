@@ -533,7 +533,7 @@ void report_device_state(void)
 	Serial.write('=');	// settings
 	if (my_address == UNIT_DISABLED) {
 		Serial.write('_');
-	} else if (my_address < 16) {
+	} else if (my_address < 64) {
 		Serial.write(my_address + '0');
 	} else {
 		Serial.write('*');
@@ -778,7 +778,7 @@ void CommandStateMachine::accept(int inputchar, bool from_485) {
 		case SetState:
 			if (inputchar == '_') {
 				my_address = UNIT_DISABLED;
-			} else if ((my_address = (inputchar - '0')) < 0 || my_address > 15) {
+			} else if ((my_address = (inputchar - '0')) < 0 || my_address > 63) {
 				error();
 				break;
 			}
@@ -857,7 +857,7 @@ void CommandStateMachine::accept(int inputchar, bool from_485) {
 			}
 			if (--address_count == 0) {
 				for (i=0; i<buffer_idx; i++) {
-					if ((buffer[i] & 0x0f) == my_address || (buffer[i] & 0x0f) == global_address) {
+					if ((buffer[i] & 0x3f) == my_address || (buffer[i] & 0x3f) == global_address) {
 						buffer_idx = 0;
 						state = StartState;
 						return;
