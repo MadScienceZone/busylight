@@ -13,7 +13,10 @@
 // common USART (true for the Arduino Nano board this project was
 // originally designed for), or if the USB input is on Serial and
 // the RS-485 is on Serial1.
-#define COMMON_SERIAL_PORT (true)	/* true=shared port (Uno, Nano); false=separate ports (Mega) */
+// CORRECTION: the original design was for the Pro Micro, which
+// is a Leonardo-compatible-ish board that DOES have separate UART
+// devices (one dedicated to USB, the other on external pins)
+#define COMMON_SERIAL_PORT (true)	/* true=shared port (Uno, Nano); false=separate ports (Mega, Pro Micro) */
 
 /*
 ** Steve Willoughby <steve@madscience.zone>
