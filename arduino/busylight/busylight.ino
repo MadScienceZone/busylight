@@ -1,22 +1,48 @@
-// Change the following PER DEVICE before flashing.
+//  ____  _   _ ______   ___     ___ ____ _   _ _____   v2.0.0 firmware
+// | __ )| | | / ___\ \ / / |   |_ _/ ___| | | |_   _| 
+// |  _ \| | | \___ \\ V /| |    | | |  _| |_| | | |  
+// | |_) | |_| |___) || | | |___ | | |_| |  _  | | |  
+// |____/ \___/|____/ |_| |_____|___\____|_| |_| |_|  
+//
+// THIS FIRMWARE IS FOR A PRO MICRO CONTROLLER ATTACHED
+// TO A BUSYLIGHT VERSION 2 SHIELD. If you are using a version 1
+// shield, it should still work, but since that board does not
+// have an RS-485 port, those functions will simply not work.
+//
+// The Pro Micro (often called the SparkFun Pro Micro, and made by a variety
+// of different manufacturers) is based on the ATmeta32U4 
+// (we use the 5V, 16MHz version).
+//
+// In the Arduino IDE, set the board type to "SparkFun Pro Micro",
+// The CPU type to "ATmega32U4 (5V, 16 MHz)".
+// You may need to add support for this to your board manager by adding
+// https://raw.githubusercontent.com/sparkfun/Arduino_Boards/main/IDE_Board_Manager/package_sparkfun_index.json
+// to your IDE's preferences.
+//
+// ===> CHANGE THE FOLLOWING PER DEVICE before flashing. <===
+//
+// THIS_DEVICE_COLOR_MAP can be empty or contain letter
+// codes to represent the colors implemented in light
+// positions 0-6. Any left off at the end of the list
+// must be addressed only by position numbers in the
+// protocol commands.
 #define THIS_DEVICE_COLOR_MAP "BRrYG"
-#define SERIAL_VERSION_STAMP "V1.0.2$R2.0.0$SBXXX$"
+//                             ^^^^^^^
+//                             0123456
+//
+// SERIAL_VERSION_STAMP holds the version number of your
+// hardware, the version of this firmware code, and the
+// unique serial number for this unit. Serial numbers
+// B000-B299 are reserved for the author; please use other
+// values for your own devices. Serial numbers must be alphanumeric only.
+#define SERIAL_VERSION_STAMP "V2.0.0$R2.0.0$SBXXX$"
 //                             \___/  \___/  \__/
 //                               |      |      |
 //                  Hardware version    |      |
 //                         Firmware version    |
 //                                 Serial number
 //
-// serial numbers B000-B299 reserved for author's use
-
-// Change this to indicate if the RS-485 and USB inputs share a
-// common USART (true for the Arduino Nano board this project was
-// originally designed for), or if the USB input is on Serial and
-// the RS-485 is on Serial1.
-// CORRECTION: the original design was for the Pro Micro, which
-// is a Leonardo-compatible-ish board that DOES have separate UART
-// devices (one dedicated to USB, the other on external pins)
-#define COMMON_SERIAL_PORT (true)	/* true=shared port (Uno, Nano); false=separate ports (Mega, Pro Micro) */
+// These are variable-length values, each terminated by a dollar-sign ($).
 
 /*
 ** Steve Willoughby <steve@madscience.zone>
@@ -28,15 +54,15 @@
 ** The physical LED tree is stacked like so:
 ** The colors are suggested but they can be arbitrary.
 **
-**                    BLUE    ==================	#0
+**                  BLUE   B  ==================	#0
 **                                    ||
-**                    RED 2   ==================	#1
+**                  RED 2  R  ==================	#1
 **                                    ||
-**                    RED 1   ==================	#2
+**                  RED 1  r  ==================	#2
 **                                    ||
-**                    YELLOW  ==================	#3
+**                  YELLOW Y  ==================	#3
 **                                    ||
-**                    GREEN   ==================	#4
+**                  GREEN  G  ==================	#4
 **                                    ||
 **                            ==================	#5
 **                                    ||
@@ -50,16 +76,16 @@
 ** PROTOCOL V2
 ** Legacy commands from V1 no longer supported.
 **
-** Commands received via USB. The V2 protocol is designed to be
-** compatible with the author's readerboard project, which implies
-** in the future there could be support for RS-485 usage as well,
-** but that's not implemented here at this time.
+** Commands may be received over the USB connection from a host computer,
+** or over an RS-485 serial network.
 **
-** All commands are terminated with a ^D ($04) byte. If an error
-** occurs, all data are ignored until a ^D is received. Extra data
-** after a command (but before the terminating ^D) is ignored.
+** USB
+** All commands received on the USB port are terminated with a ^D ($04) 
+** byte. If an error occurs, all data are ignored until a ^D is received.
+** Extra data after a command (but before the terminating ^D) is ignored.
 **
-** Alternatively, commands received via RS-485 start with a binary
+** RS-485
+** Commands received via RS-485 start with a binary
 ** header to be compatible with Lumos devices on the same network.
 **
 ** 1000aaaa                                              turn all LEDs off. [1]
@@ -88,21 +114,6 @@
 ** <Ln> - ASCII digit '0'..'6'.
 ** <spd> - 0=300 1=600 2=1200 3=2400 4=4800 5=9600* 6=14.4k 7=19.2k 8=28.8k 9=31.25k A=38.4k B=57.6k C=115.2k
 ** *default
-**
-** Set this for each individual unit with the hardware version and firmware version.
-** Also set the unit's serial number in place of the XXXXX.  Serial numbers 000-299 are
-** reserved for the author's use.
-**
-** Each of these fields are variable width, do not necessarily have leading zeroes,
-** and the version numbers may be any string conforming to semantic versioning 2.0.0
-** (see semver.org).
-**
-**
-** Implementation Notes
-** USB
-**     Commands received via USB must be terminated by a ^D. If an error is encountered,
-**     the interpreter will ignore data until a ^D is received before starting to interpret
-**     anything further.
 **
 ** State Machine
 **     -> ERR       signal error condition and go to ERROR state
@@ -151,7 +162,7 @@
 **        <Ln> ::= <colorcode>|<digit>|_ (off)|? (out of range)
 **
 ** Q
-**     Q B = _ <speed> _ _ $ V <hwversion> $ R <romversion> $ S <serialno> $ \n
+**     Q B = <address> <usb-speed> <rs-485-speed> <global-address> $ V <hwversion> $ R <romversion> $ S <serialno> $ \n
 **
 */
 
@@ -183,6 +194,13 @@
 //                       BL R2 R1  Y  G
 const int tree_port[] = {10, 7, 6, 8, 9, 14, 16};
 //                       #0 #1 #2 #3 #4  #5  #6
+
+//
+// Other output pin numbers
+// 
+#define PIN_485_DRIVER_ENABLE	 (2)	/* 1=RS-485 driver enabled */
+#define PIN_485_RECEIVER_DISABLE (3)	/* 0=RS-485 receiver enabled */
+bool rs_485_enabled = false;			/* should we even try to talk to the RS-485 port? */
 
 //
 // These LightBlinkers handle our flashing and strobing.
@@ -427,8 +445,21 @@ void setup() {
 	start_usb_serial();
 	my_address = EEPROM.read(EE_ADDR_485_ADDR);
 	global_address = EEPROM.read(EE_ADDR_GLOB_ADDR);
+	
+	// By default, the hardware disables the RS-485 transceiver chip.
+	// Here, we'll activate the control lines and either set the transceiver
+	// to receive or leave it disabled.
+	pinMode(PIN_485_DRIVER_ENABLE, OUTPUT);
+	digitalWrite(PIN_485_DRIVER_ENABLE, LOW);
+	//            __
+	// We set the RE line high before enabling it as an output. This
+	// will ensure that it's sending a high signal from the start (and
+	// will cause the pin's internal pull-up resistor to be activated
+	// as well during the time before it is switched to output mode).
+	digitalWrite(PIN_485_RECEIVER_DISABLE, HIGH);
+	pinMode(PIN_485_RECEIVER_DISABLE, OUTPUT);
 	if (my_address != UNIT_DISABLED) {
-		start_485_serial();
+		enable_485_serial();
 	}
 	digitalWrite(tree_port[0], LOW);
 	csm.begin();
@@ -452,6 +483,7 @@ void default_eeprom_settings(void) {
 		// baud rate setting invalid; return to default
 		EEPROM.write(EE_ADDR_USB_SPEED, EE_DEFAULT_SPEED);
 	}
+	disable_485_serial();
 }
 
 long decode_baud_rate(byte code) {
@@ -484,15 +516,36 @@ void start_usb_serial(void) {
 	while (!Serial);
 }
 
+void enable_485_serial(void) {
+	/* turn on the transceiver in receiver mode */
+	digitalWrite(PIN_485_DRIVER_ENABLE, LOW);
+	digitalWrite(PIN_485_RECEIVER_DISABLE, LOW);
+
+	/* tell the rest of the firmware to pay attention to the port */
+	rs_485_enabled = true;
+
+	/* set up the Serial1 interface and set the baud rate on the UART */
+	start_485_serial();
+}
+
+void disable_485_serial(void) {
+	/* turn off the transceiver chip entirely */
+	digitalWrite(PIN_485_DRIVER_ENABLE, LOW);
+	digitalWrite(PIN_485_RECEIVER_DISABLE, HIGH);
+
+	/* tell the rest of the firmware to ignore the port */
+	rs_485_enabled = false;
+}
+
 void start_485_serial(void) {
-#if !COMMON_SERIAL_PORT
 	byte speed_code = EEPROM.read(EE_ADDR_485_SPEED);
 	if (speed_code > 0) {
 		long speed = decode_baud_rate(speed_code);
 		Serial1.begin(speed);
 		while (!Serial1);
+	} else {
+		disable_485_serial();
 	}
-#endif
 }
 
 //
@@ -542,15 +595,11 @@ void report_device_state(void)
 		Serial.write('*');
 	}
 	Serial.write(EEPROM.read(EE_ADDR_USB_SPEED)); // USB speed
-#if COMMON_SERIAL_PORT
-	Serial.write(EEPROM.read(EE_ADDR_USB_SPEED)); // USB speed
-#else
 	if ((b = EEPROM.read(EE_ADDR_485_SPEED)) == 0) {
 		Serial.write('_');
 	} else {
 		Serial.write(b);
 	}
-#endif
 	if (global_address == UNIT_DISABLED) {
 		Serial.write('_');
 	} else if (global_address < 16) {
@@ -575,7 +624,6 @@ bool set_baud_rate(byte baud_code) {
 }
 
 bool set_485_baud_rate(byte baud_code) {
-#if !COMMON_SERIAL_PORT
 	if (baud_code == 0 || my_address == UNIT_DISABLED) {
 		EEPROM.write(EE_ADDR_485_SPEED, 0);
 		return true;
@@ -587,7 +635,6 @@ bool set_485_baud_rate(byte baud_code) {
 		start_485_serial();
 		return true;
 	}
-#endif
 	return false;
 }
 
@@ -599,9 +646,6 @@ void CommandStateMachine::begin(void) {
 
 // reset: reset the state machine back to the start state
 void CommandStateMachine::reset(void) {
-#if COMMON_SERIAL_PORT
-	source_485 = false;	/* simulate transition when we don't have a dedicated RS-485 USART */
-#endif
 	state = IdleState;
 	address_count = 0;
 	command_in_progress = 0;
@@ -617,18 +661,6 @@ void CommandStateMachine::reset(void) {
 // accept an input character into the state machine
 void CommandStateMachine::accept(int inputchar, bool from_485) {
 	int i;
-
-#if COMMON_SERIAL_PORT
-	// If we only have one USART, we'll take a MSB=1 byte as an
-	// indicator that we're receiving RS-485 protocol stuff. We
-	// will clear that when we reset the state machine so if we
-	// receive another one, we'll set it again but if we receive
-	// a command without the RS-485 header we'll say that's a USB
-	// command.
-	if (inputchar & 0x80) {
-		from_485 = true;
-	}
-#endif
 
 	// if we were in the middle of a command and suddenly flipped
 	// input source, signal that as an error
@@ -810,12 +842,15 @@ void CommandStateMachine::accept(int inputchar, bool from_485) {
 				error();
 				break;
 			}
-#if !COMMON_SERIAL_PORT
 			if (!set_485_baud_rate(buffer[1])) {
 				error();
 				break;
 			}
-#endif
+			if (my_address == UNIT_DISABLED) {
+				disable_485_serial();
+			} else {
+				enable_485_serial();
+			}
 			end_cmd();
 			break;
 
@@ -950,11 +985,9 @@ void loop() {
 	if (Serial.available() > 0) {
 		csm.accept(Serial.read(), false);
 	}
-#if !COMMON_SERIAL_PORT
-	if (Serial1.available() > 0) {
+	if (rs_485_enabled && Serial1.available() > 0) {
 		csm.accept(Serial1.read(), true);
 	}
-#endif
 }
 
 // flash a single light on/off, or sequence through a list at the on cadence.
