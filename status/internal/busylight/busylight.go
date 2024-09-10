@@ -46,12 +46,17 @@ type ConfigData struct {
 	// The path to the file where we store our PID while we're running.
 	PidFile string
 
-	// The path to the serial device we use to communicate with the light hardware.
+	// The server endpoint to contact to update the device, and the address to
+	// use when asking it to update.
+	ServerEndpoint string
+	ServerAddress  int
+
+	// If ServerEndpoint is empty, then this provides the lodal path to the serial device we use to communicate with the light hardware.
 	Device string
 
-	// If `Device` is empty, then `DeviceDir` specifies a directory to search for
+	// If Device is also empty, then DeviceDir specifies a directory to search for
 	// the hardware port. The first file we can successfully open that matches
-	// the regular expression `DeviceRegexp` will be used.
+	// the regular expression DeviceRegexp will be used.
 	DeviceDir    string
 	DeviceRegexp string
 
