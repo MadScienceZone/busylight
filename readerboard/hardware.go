@@ -339,6 +339,7 @@ func ProbeDevices(configData *ConfigData) error {
 	}
 	for id, dev := range configData.Devices {
 		var commands, rawBytes []byte
+		var received []byte
 		var err error
 		log.Printf("Device address %d: type=%v; net=%s (%s; s/n=%s)", id, dev.DeviceType, dev.NetworkID, dev.Description, dev.Serial)
 		sender, parser := Query()
@@ -351,77 +352,84 @@ func ProbeDevices(configData *ConfigData) error {
 				return fmt.Errorf("error preparing bytestream for unit %d: %v", id, err)
 			}
 
-			if err := net.driver.SendBytes(rawBytes); err != nil {
-				return fmt.Errorf("error transmitting bytestream to unit %d: %v", id, err)
+			if err := func() error {
+				lockNetwork(dev.NetworkID)
+				defer unlockNetwork(dev.NetworkID)
+
+				if err := net.driver.SendBytes(rawBytes); err != nil {
+					return fmt.Errorf("error transmitting bytestream to unit %d: %v", id, err)
+				}
+
+				if received, err = net.driver.Receive(); err != nil {
+					return fmt.Errorf("device address %d: error reading reply: %v", id, err)
+				}
+				return nil
+			}(); err != nil {
+				return err
 			}
 
-			if received, err := net.driver.Receive(); err == nil {
-				//log.Printf("Receive returned %s", received)
-				if statData, err := parser(dev.DeviceType, received); err == nil {
-					if s, ok := statData.(DeviceStatus); ok {
-						log.Printf("probed device ID %d on network %s:", id, dev.NetworkID)
-						switch s.DeviceModelClass {
-						case 'B':
-							switch dev.DeviceType {
-							case Busylight1:
-								log.Printf("| busylight model 1.x; USB speed %d; %s EEPROM; hw %s; fw %s; S/N %s",
-									s.SpeedUSB, EEPROMTypeName(s.EEPROM), s.HardwareRevision, s.FirmwareRevision, s.Serial)
-								logStatusLEDs(s.StatusLEDs)
-							case Busylight2:
-								log.Printf("| busylight model 2.x; address %v; global %v; USB speed %d; RS-485 speed %d; %s EEPROM; hw %s; fw %s; S/N %s",
-									showAddress(s.DeviceAddress), showAddress(s.GlobalAddress), s.SpeedUSB, s.Speed485, EEPROMTypeName(s.EEPROM), s.HardwareRevision, s.FirmwareRevision, s.Serial)
-								logStatusLEDs(s.StatusLEDs)
-							default:
-								log.Printf("| IDENTIFIES AS A BUSYLIGHT DEVICE REV %s BUT CONFIGURED AS %s!", s.HardwareRevision, HardwareModelName(dev.DeviceType))
-							}
-						case 'M':
-							switch dev.DeviceType {
-							case Readerboard3Mono:
-								log.Printf("| monochrome readerboard model 3.x; address %v; global %v; USB speed %d; RS-485 speed %d; %s EEPROM; hw %s; fw %s; S/N %s",
-									showAddress(s.DeviceAddress), showAddress(s.GlobalAddress), s.SpeedUSB, s.Speed485, EEPROMTypeName(s.EEPROM), s.HardwareRevision, s.FirmwareRevision, s.Serial)
-								logStatusLEDs(s.StatusLEDs)
-								log.Printf("| bitmap %s", hex.EncodeToString(s.ImageBitmap[0][:]))
-								log.Printf("| flash  %s", hex.EncodeToString(s.ImageBitmap[1][:]))
-								logMonochromeBitmap(s.ImageBitmap)
-							default:
-								log.Printf("| IDENTIFIES AS A MONOCHROME READERBOARD DEVICE REV %s BUT CONFIGURED AS %s!", s.HardwareRevision, HardwareModelName(dev.DeviceType))
-							}
-						case 'C':
-							switch dev.DeviceType {
-							case Readerboard3RGB:
-								log.Printf("| color readerboard model 3.x; address %v; global %v; USB speed %d; RS-485 speed %d; %s EEPROM; hw %s; fw %s; S/N %s",
-									showAddress(s.DeviceAddress), showAddress(s.GlobalAddress), s.SpeedUSB, s.Speed485, EEPROMTypeName(s.EEPROM), s.HardwareRevision, s.FirmwareRevision, s.Serial)
-								logStatusLEDs(s.StatusLEDs)
-								log.Printf("| red plane %s", hex.EncodeToString(s.ImageBitmap[0][:]))
-								log.Printf("| green \"   %s", hex.EncodeToString(s.ImageBitmap[1][:]))
-								log.Printf("| blue  \"   %s", hex.EncodeToString(s.ImageBitmap[2][:]))
-								log.Printf("| flash \"   %s", hex.EncodeToString(s.ImageBitmap[3][:]))
-								logColorBitmap(s.ImageBitmap)
-							default:
-								log.Printf("| IDENTIFIES AS A COLOR READERBOARD DEVICE REV %s BUT CONFIGURED AS %s!", s.HardwareRevision, HardwareModelName(dev.DeviceType))
-							}
-
+			if statData, err := parser(dev.DeviceType, received); err == nil {
+				if s, ok := statData.(DeviceStatus); ok {
+					log.Printf("probed device ID %d on network %s:", id, dev.NetworkID)
+					switch s.DeviceModelClass {
+					case 'B':
+						switch dev.DeviceType {
+						case Busylight1:
+							log.Printf("| busylight model 1.x; USB speed %d; %s EEPROM; hw %s; fw %s; S/N %s",
+								s.SpeedUSB, EEPROMTypeName(s.EEPROM), s.HardwareRevision, s.FirmwareRevision, s.Serial)
+							logStatusLEDs(s.StatusLEDs)
+						case Busylight2:
+							log.Printf("| busylight model 2.x; address %v; global %v; USB speed %d; RS-485 speed %d; %s EEPROM; hw %s; fw %s; S/N %s",
+								showAddress(s.DeviceAddress), showAddress(s.GlobalAddress), s.SpeedUSB, s.Speed485, EEPROMTypeName(s.EEPROM), s.HardwareRevision, s.FirmwareRevision, s.Serial)
+							logStatusLEDs(s.StatusLEDs)
 						default:
-							log.Printf("| legacy or unknown device; raw data %s", received)
+							log.Printf("| IDENTIFIES AS A BUSYLIGHT DEVICE REV %s BUT CONFIGURED AS %s!", s.HardwareRevision, HardwareModelName(dev.DeviceType))
+						}
+					case 'M':
+						switch dev.DeviceType {
+						case Readerboard3Mono:
+							log.Printf("| monochrome readerboard model 3.x; address %v; global %v; USB speed %d; RS-485 speed %d; %s EEPROM; hw %s; fw %s; S/N %s",
+								showAddress(s.DeviceAddress), showAddress(s.GlobalAddress), s.SpeedUSB, s.Speed485, EEPROMTypeName(s.EEPROM), s.HardwareRevision, s.FirmwareRevision, s.Serial)
+							logStatusLEDs(s.StatusLEDs)
+							log.Printf("| bitmap %s", hex.EncodeToString(s.ImageBitmap[0][:]))
+							log.Printf("| flash  %s", hex.EncodeToString(s.ImageBitmap[1][:]))
+							logMonochromeBitmap(s.ImageBitmap)
+						default:
+							log.Printf("| IDENTIFIES AS A MONOCHROME READERBOARD DEVICE REV %s BUT CONFIGURED AS %s!", s.HardwareRevision, HardwareModelName(dev.DeviceType))
+						}
+					case 'C':
+						switch dev.DeviceType {
+						case Readerboard3RGB:
+							log.Printf("| color readerboard model 3.x; address %v; global %v; USB speed %d; RS-485 speed %d; %s EEPROM; hw %s; fw %s; S/N %s",
+								showAddress(s.DeviceAddress), showAddress(s.GlobalAddress), s.SpeedUSB, s.Speed485, EEPROMTypeName(s.EEPROM), s.HardwareRevision, s.FirmwareRevision, s.Serial)
+							logStatusLEDs(s.StatusLEDs)
+							log.Printf("| red plane %s", hex.EncodeToString(s.ImageBitmap[0][:]))
+							log.Printf("| green \"   %s", hex.EncodeToString(s.ImageBitmap[1][:]))
+							log.Printf("| blue  \"   %s", hex.EncodeToString(s.ImageBitmap[2][:]))
+							log.Printf("| flash \"   %s", hex.EncodeToString(s.ImageBitmap[3][:]))
+							logColorBitmap(s.ImageBitmap)
+						default:
+							log.Printf("| IDENTIFIES AS A COLOR READERBOARD DEVICE REV %s BUT CONFIGURED AS %s!", s.HardwareRevision, HardwareModelName(dev.DeviceType))
 						}
 
-						if s.DeviceAddress != 0xff && s.DeviceAddress != byte(id) {
-							log.Printf("| WARNING! device thinks its address is %d but configured as %d!", s.DeviceAddress, id)
-						}
-						if s.GlobalAddress != byte(configData.GlobalAddress) {
-							log.Printf("| WARNING! device thinks the global address is %d but configured as %d!", s.GlobalAddress, configData.GlobalAddress)
-						}
-						if s.Serial != dev.Serial {
-							log.Printf("| WARNING! device serial number is %s but configured as %s!", s.Serial, dev.Serial)
-						}
-					} else {
-						log.Printf("device address %d: unable to parse raw response %s", id, received)
+					default:
+						log.Printf("| legacy or unknown device; raw data %s", received)
+					}
+
+					if s.DeviceAddress != 0xff && s.DeviceAddress != byte(id) {
+						log.Printf("| WARNING! device thinks its address is %d but configured as %d!", s.DeviceAddress, id)
+					}
+					if s.GlobalAddress != byte(configData.GlobalAddress) {
+						log.Printf("| WARNING! device thinks the global address is %d but configured as %d!", s.GlobalAddress, configData.GlobalAddress)
+					}
+					if s.Serial != dev.Serial {
+						log.Printf("| WARNING! device serial number is %s but configured as %s!", s.Serial, dev.Serial)
 					}
 				} else {
-					return fmt.Errorf("device address %d: error parsing output \"%s\": %v", id, received, err)
+					log.Printf("device address %d: unable to parse raw response %s", id, received)
 				}
 			} else {
-				return fmt.Errorf("device address %d: error reading reply: %v", id, err)
+				return fmt.Errorf("device address %d: error parsing output \"%s\": %v", id, received, err)
 			}
 		} else {
 			return fmt.Errorf("device address %d: belongs to network %s but I can't find that network.", id, dev.NetworkID)

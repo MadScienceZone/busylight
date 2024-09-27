@@ -182,25 +182,70 @@ func ledList(r url.Values) ([]byte, error) {
 }
 
 type JSONErrorResponse struct {
-	Status  string
 	Errors  int
 	Message string
 }
 
 func WrapReplyHandler(f func() (func(url.Values, HardwareModel) ([]byte, error), func(HardwareModel, []byte) (any, error)), config *ConfigData) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		sender, _ := f()
-		errors := sendCommandToHardware(sender, r, config)
-		if errors > 0 {
+		targetNetworks, errors := getTargetList(r, config)
+		sender, parser := f()
+		var received []byte
+		var err error
+		var dt HardwareModel
+
+		if err = func() error {
+			if len(targetNetworks) != 1 {
+				return fmt.Errorf("target must be a single device")
+			}
+			for netID, devs := range targetNetworks {
+				if len(devs) != 1 {
+					return fmt.Errorf("target must be a single device")
+				}
+				dt = netID.DeviceType
+
+				lockNetwork(netID.NetworkID)
+				defer unlockNetwork(netID.NetworkID)
+				newErrors := sendCommandToHardware(sender, r, config, false)
+				if newErrors > 0 {
+					return fmt.Errorf("failed to send command to target hardware device.")
+					errors += newErrors
+				}
+				received, err = config.Networks[netID.NetworkID].driver.Receive()
+				if err != nil {
+					errors++
+					return err
+				}
+				return nil
+			}
+			return nil
+		}(); err != nil {
 			resp, _ := json.Marshal(JSONErrorResponse{
-				Errors:  errors,
-				Message: "Failed to send command to target hardware device.",
+				Errors:  errors + 1,
+				Message: err.Error(),
 			})
 			io.WriteString(w, string(resp)+"\n")
 			return
 		}
 
-		io.WriteString(w, "not implemented\n")
+		if responseData, err := parser(dt, received); err == nil {
+			resp, err := json.Marshal(responseData)
+			if err != nil {
+				errors++
+				resp, _ = json.Marshal(JSONErrorResponse{
+					Errors:  errors,
+					Message: fmt.Sprintf("Unable to marshal respsonse: %v", err),
+				})
+			}
+			io.WriteString(w, string(resp)+"\n")
+		} else {
+			errors++
+			resp, _ := json.Marshal(JSONErrorResponse{
+				Errors:  errors,
+				Message: err.Error(),
+			})
+			io.WriteString(w, string(resp)+"\n")
+		}
 	}
 }
 
@@ -211,7 +256,7 @@ type netTargetKey struct {
 
 func WrapHandler(f func(url.Values, HardwareModel) ([]byte, error), config *ConfigData) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if errors := sendCommandToHardware(f, r, config); errors > 0 {
+		if errors := sendCommandToHardware(f, r, config, true); errors > 0 {
 			io.WriteString(w, fmt.Sprintf("%d error%s occurred while trying to carry out this operation.\n",
 				errors, func(n int) string {
 					if n == 1 {
@@ -224,15 +269,13 @@ func WrapHandler(f func(url.Values, HardwareModel) ([]byte, error), config *Conf
 	}
 }
 
-func sendCommandToHardware(f func(url.Values, HardwareModel) ([]byte, error), r *http.Request, config *ConfigData) int {
-	var rawBytes []byte
-	var err error
+func getTargetList(r *http.Request, config *ConfigData) (map[netTargetKey][]int, int) {
+	var errors int
 
-	errors := 0
 	targets, err := reqInit(r, config.GlobalAddress)
 	if err != nil {
 		log.Printf("invalid request: %v", err)
-		return 1
+		return nil, 1
 	}
 
 	// organize our target list by the networks they're attached to, grouped together by device model
@@ -255,6 +298,14 @@ func sendCommandToHardware(f func(url.Values, HardwareModel) ([]byte, error), r 
 			targetNetworks[netTargetKey{dev.NetworkID, dev.DeviceType}] = append(targetNetworks[netTargetKey{dev.NetworkID, dev.DeviceType}], target)
 		}
 	}
+
+	return targetNetworks, errors
+}
+
+func sendCommandToHardware(f func(url.Values, HardwareModel) ([]byte, error), r *http.Request, config *ConfigData, doLocks bool) int {
+	var rawBytes []byte
+
+	targetNetworks, errors := getTargetList(r, config)
 
 	// Try sending the commands to the devices
 	for targetNetwork, targetList := range targetNetworks {
@@ -305,7 +356,13 @@ func sendCommandToHardware(f func(url.Values, HardwareModel) ([]byte, error), r 
 			}
 		}
 
-		if err = config.Networks[targetNetwork.NetworkID].driver.SendBytes(rawBytes); err != nil {
+		if err = func() error {
+			if doLocks {
+				lockNetwork(targetNetwork.NetworkID)
+				defer unlockNetwork(targetNetwork.NetworkID)
+			}
+			return config.Networks[targetNetwork.NetworkID].driver.SendBytes(rawBytes)
+		}(); err != nil {
 			errors++
 			log.Printf("error transmitting bytestream to %s: %v", targetNetwork.NetworkID, err)
 			continue

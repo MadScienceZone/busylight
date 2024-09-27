@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"strconv"
+	"sync"
 )
 
 // ConfigData holds the configuration specified by the user in the config.json file
@@ -81,6 +82,24 @@ type NetworkDescription struct {
 	BaudRate int
 
 	driver NetworkDriver
+}
+
+var networkLocks map[string]*sync.Mutex
+
+func lockNetwork(id string) {
+	networkLocks[id].Lock()
+}
+
+func unlockNetwork(id string) {
+	networkLocks[id].Unlock()
+}
+
+func createNetworkLock(id string) {
+	networkLocks[id] = &sync.Mutex{}
+}
+
+func init() {
+	networkLocks = make(map[string]*sync.Mutex)
 }
 
 type NetworkType byte
@@ -216,6 +235,10 @@ func GetConfigFromFile(filename string, data *ConfigData) error {
 	err = json.Unmarshal(cdata, &data)
 	if err != nil {
 		return fmt.Errorf("Unable to understand %s configuration: %v", filename, err)
+	}
+
+	for id, _ := range data.Networks {
+		createNetworkLock(id)
 	}
 	return nil
 }
