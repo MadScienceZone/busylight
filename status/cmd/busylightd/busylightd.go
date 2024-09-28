@@ -326,9 +326,7 @@ func setup(config *busylight.ConfigData, devState *busylight.DevState) error {
 	return nil
 }
 
-//
 // reverse whatever setup() did
-//
 func closeDevice(config *busylight.ConfigData, devState *busylight.DevState) {
 	_ = busylight.AttachToLight(config, devState)
 	_ = busylight.LightSignal(config, devState, "stop", 100*time.Millisecond)
@@ -360,7 +358,7 @@ func main() {
 	// Listen for incoming signals from outside
 	//
 	req := make(chan os.Signal, 5)
-	signal.Notify(req, syscall.SIGHUP, syscall.SIGUSR1, syscall.SIGUSR2, syscall.SIGWINCH, syscall.SIGINFO, syscall.SIGINT, syscall.SIGVTALRM)
+	signal.Notify(req, syscall.SIGHUP, syscall.SIGUSR1, syscall.SIGUSR2, syscall.SIGWINCH, syscall.SIGPWR, syscall.SIGINT, syscall.SIGVTALRM)
 
 	//
 	// Get initial calendar download
@@ -474,7 +472,7 @@ eventLoop:
 					devState.Logger.Printf("Daemon in inactive state... zzz")
 				}
 
-			case syscall.SIGINFO:
+			case syscall.SIGPWR:
 				if isActiveNow {
 					devState.Logger.Printf("Reloading calendar status by request")
 					err = busyTimes.Refresh(&config, &devState)

@@ -141,7 +141,7 @@ func main() {
 		if daemon == nil {
 			fmt.Printf("Warning: unable to find daemon, so I can't signal it.\n")
 		} else {
-			daemon.Signal(syscall.SIGINFO)
+			daemon.Signal(syscall.SIGPWR)
 		}
 	}
 
