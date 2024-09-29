@@ -18,6 +18,13 @@ import (
 	"strings"
 )
 
+func encodeInt6(n int) byte {
+	if n < 0 || n > 63 {
+		return '_'
+	}
+	return byte(n) + '0'
+}
+
 //
 // parseBaudRateCode reads a one-byte baud rate code and returns the baud rate it
 // represents.
@@ -52,6 +59,39 @@ func parseBaudRateCode(code byte) (int, error) {
 		return 115200, nil
 	default:
 		return 0, fmt.Errorf("invalid baud rate code")
+	}
+}
+
+func encodeBaudRateCode(speed int) (byte, error) {
+	switch speed {
+	case 300:
+		return '0', nil
+	case 600:
+		return '1', nil
+	case 1200:
+		return '2', nil
+	case 2400:
+		return '3', nil
+	case 4800:
+		return '4', nil
+	case 9600:
+		return '5', nil
+	case 14400:
+		return '6', nil
+	case 19200:
+		return '7', nil
+	case 28800:
+		return '8', nil
+	case 31250:
+		return '9', nil
+	case 38400:
+		return 'A', nil
+	case 57600:
+		return 'B', nil
+	case 115200:
+		return 'C', nil
+	default:
+		return 0, fmt.Errorf("invalid baud rate")
 	}
 }
 
@@ -186,66 +226,79 @@ type JSONErrorResponse struct {
 	Message string
 }
 
+func reportErrorJSON(w http.ResponseWriter, errors int, message string) {
+	resp, _ := json.Marshal(JSONErrorResponse{
+		Errors:  errors,
+		Message: message,
+	})
+	io.WriteString(w, string(resp)+"\n")
+}
+
 func WrapReplyHandler(f func() (func(url.Values, HardwareModel) ([]byte, error), func(HardwareModel, []byte) (any, error)), config *ConfigData) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		targetNetworks, errors := getTargetList(r, config)
 		sender, parser := f()
 		var received []byte
 		var err error
 		var dt HardwareModel
+		replylist := make(map[int][]byte)
 
-		if err = func() error {
-			if len(targetNetworks) != 1 {
-				return fmt.Errorf("target must be a single device")
-			}
-			for netID, devs := range targetNetworks {
-				if len(devs) != 1 {
-					return fmt.Errorf("target must be a single device")
-				}
-				dt = netID.DeviceType
-
-				lockNetwork(netID.NetworkID)
-				defer unlockNetwork(netID.NetworkID)
-				newErrors := sendCommandToHardware(sender, r, config, false)
-				if newErrors > 0 {
-					return fmt.Errorf("failed to send command to target hardware device.")
-					errors += newErrors
-				}
-				received, err = config.Networks[netID.NetworkID].driver.Receive()
-				if err != nil {
-					errors++
-					return err
-				}
-				return nil
-			}
-			return nil
-		}(); err != nil {
-			resp, _ := json.Marshal(JSONErrorResponse{
-				Errors:  errors + 1,
-				Message: err.Error(),
-			})
-			io.WriteString(w, string(resp)+"\n")
+		targetNetworks, errors, _ := getTargetList(r, config)
+		if errors > 0 {
+			reportErrorJSON(w, errors, "Unable to get target list for command")
 			return
 		}
 
-		if responseData, err := parser(dt, received); err == nil {
-			resp, err := json.Marshal(responseData)
-			if err != nil {
-				errors++
-				resp, _ = json.Marshal(JSONErrorResponse{
-					Errors:  errors,
-					Message: fmt.Sprintf("Unable to marshal respsonse: %v", err),
-				})
+		for netID, devs := range targetNetworks {
+			for _, dev := range devs {
+				reply, err := func() ([]byte, error) {
+					dt = netID.DeviceType
+
+					// force command execution to target ONE device only.
+					tNet := make(map[netTargetKey][]int)
+					tNet[netID] = []int{dev}
+
+					lockNetwork(netID.NetworkID)
+					defer unlockNetwork(netID.NetworkID)
+					newErrors := sendCommandToHardware(sender, tNet, r, config, false)
+					if newErrors > 0 {
+						errors += newErrors
+						return nil, fmt.Errorf("failed to send command to target hardware device %d.", dev)
+					}
+					received, err = config.Networks[netID.NetworkID].driver.Receive()
+					if err != nil {
+						errors++
+						return nil, err
+					}
+					return received, nil
+				}()
+				if err != nil {
+					reportErrorJSON(w, errors+1, fmt.Sprintf("failed to query target hardware device %d (%v)", dev, err))
+					return
+				}
+
+				if responseData, err := parser(dt, reply); err == nil {
+					resp, err := json.Marshal(responseData)
+					if err != nil {
+						reportErrorJSON(w, errors+1, fmt.Sprintf("Unable to marshal device %d response (%v)", dev, err))
+						return
+					}
+					replylist[dev] = resp
+				} else {
+					reportErrorJSON(w, errors+1, fmt.Sprintf("Error querying device %d (%v)", dev, err))
+				}
 			}
-			io.WriteString(w, string(resp)+"\n")
-		} else {
-			errors++
-			resp, _ := json.Marshal(JSONErrorResponse{
-				Errors:  errors,
-				Message: err.Error(),
-			})
-			io.WriteString(w, string(resp)+"\n")
 		}
+		io.WriteString(w, "{")
+		first := true
+		for devID, devResponse := range replylist {
+			if first {
+				first = false
+			} else {
+				io.WriteString(w, ",")
+			}
+			io.WriteString(w, fmt.Sprintf("\"%d\":%s", devID, string(devResponse)))
+		}
+		io.WriteString(w, "}\n")
 	}
 }
 
@@ -254,9 +307,14 @@ type netTargetKey struct {
 	DeviceType HardwareModel
 }
 
-func WrapHandler(f func(url.Values, HardwareModel) ([]byte, error), config *ConfigData) func(http.ResponseWriter, *http.Request) {
+func WrapHandler(f func(url.Values, HardwareModel) ([]byte, error), config *ConfigData, globalAllowed bool) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if errors := sendCommandToHardware(f, r, config, true); errors > 0 {
+		targetNetworks, errors, isGlobal := getTargetList(r, config)
+		if isGlobal && !globalAllowed {
+			io.WriteString(w, "command may not be targetted to the global address.\n")
+			return
+		}
+		if errors += sendCommandToHardware(f, targetNetworks, r, config, true); errors > 0 {
 			io.WriteString(w, fmt.Sprintf("%d error%s occurred while trying to carry out this operation.\n",
 				errors, func(n int) string {
 					if n == 1 {
@@ -269,13 +327,14 @@ func WrapHandler(f func(url.Values, HardwareModel) ([]byte, error), config *Conf
 	}
 }
 
-func getTargetList(r *http.Request, config *ConfigData) (map[netTargetKey][]int, int) {
+func getTargetList(r *http.Request, config *ConfigData) (map[netTargetKey][]int, int, bool) {
 	var errors int
+	isGlobal := false
 
 	targets, err := reqInit(r, config.GlobalAddress)
 	if err != nil {
 		log.Printf("invalid request: %v", err)
-		return nil, 1
+		return nil, 1, isGlobal
 	}
 
 	// organize our target list by the networks they're attached to, grouped together by device model
@@ -284,6 +343,7 @@ func getTargetList(r *http.Request, config *ConfigData) (map[netTargetKey][]int,
 	targetNetworks := make(map[netTargetKey][]int)
 	if targets[0] == config.GlobalAddress {
 		// add everything
+		isGlobal = true
 		for target, dev := range config.Devices {
 			targetNetworks[netTargetKey{dev.NetworkID, dev.DeviceType}] = append(targetNetworks[netTargetKey{dev.NetworkID, dev.DeviceType}], target)
 		}
@@ -299,13 +359,12 @@ func getTargetList(r *http.Request, config *ConfigData) (map[netTargetKey][]int,
 		}
 	}
 
-	return targetNetworks, errors
+	return targetNetworks, errors, isGlobal
 }
 
-func sendCommandToHardware(f func(url.Values, HardwareModel) ([]byte, error), r *http.Request, config *ConfigData, doLocks bool) int {
+func sendCommandToHardware(f func(url.Values, HardwareModel) ([]byte, error), targetNetworks map[netTargetKey][]int, r *http.Request, config *ConfigData, doLocks bool) int {
 	var rawBytes []byte
-
-	targetNetworks, errors := getTargetList(r, config)
+	errors := 0
 
 	// Try sending the commands to the devices
 	for targetNetwork, targetList := range targetNetworks {
@@ -389,6 +448,21 @@ func intParam(r url.Values, key string) (int, error) {
 		return 0, nil
 	}
 	return strconv.Atoi(v)
+}
+
+func intParamOrUnderscore(r url.Values, key string) (int, bool, error) {
+	v := r.Get(key)
+	if v == "_" {
+		return 0, false, nil
+	}
+	if v == "" {
+		return 0, true, nil
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil {
+		return n, false, err
+	}
+	return n, true, nil
 }
 
 func textParam(r url.Values) ([]byte, error) {
@@ -675,6 +749,38 @@ func Text(r url.Values, hw HardwareModel) ([]byte, error) {
 	return append([]byte{'T', merge, align[0], trans[0]}, text...), nil
 }
 
+func ConfigureDevice(r url.Values, hw HardwareModel) ([]byte, error) {
+	Rspeed, err := intParam(r, "rspeed")
+	if err != nil {
+		return nil, fmt.Errorf("rspeed paramater invalid (%v)", err)
+	}
+	Uspeed, err := intParam(r, "uspeed")
+	if err != nil {
+		return nil, fmt.Errorf("uspeed paramater invalid (%v)", err)
+	}
+	MyAddr, MyAddrValid, err := intParamOrUnderscore(r, "address")
+	if err != nil {
+		return nil, fmt.Errorf("address paramater invalid (%v)", err)
+	}
+	GlobalAddr, err := intParam(r, "global")
+	if err != nil {
+		return nil, fmt.Errorf("global paramater invalid (%v)", err)
+	}
+	RspeedCode, err := encodeBaudRateCode(Rspeed)
+	if err != nil {
+		return nil, fmt.Errorf("rspeed paramater invalid (%v)", err)
+	}
+	UspeedCode, err := encodeBaudRateCode(Uspeed)
+	if err != nil {
+		return nil, fmt.Errorf("rspeed paramater invalid (%v)", err)
+	}
+	if MyAddrValid {
+		return []byte{'=', encodeInt6(MyAddr), UspeedCode, RspeedCode, encodeInt6(GlobalAddr)}, nil
+	} else {
+		return []byte{'=', '.', UspeedCode, RspeedCode, encodeInt6(GlobalAddr)}, nil
+	}
+}
+
 //
 // Light sets a static pattern on the busylight status LEDs.
 //    /readerboard/v1/light?a=<targets>&l=<leds>
@@ -946,11 +1052,14 @@ func WrapInternalHandler(f func([]int, url.Values) error, config *ConfigData) fu
 }
 
 func Post(_ []int, _ url.Values) error {
-	return nil
+	return fmt.Errorf("not yet implemented")
+}
+func PostList(_ []int, _ url.Values) error {
+	return fmt.Errorf("not yet implemented")
 }
 func Unpost(_ []int, _ url.Values) error {
-	return nil
+	return fmt.Errorf("not yet implemented")
 }
 func Update(_ []int, _ url.Values) error {
-	return nil
+	return fmt.Errorf("not yet implemented")
 }

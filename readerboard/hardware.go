@@ -14,10 +14,25 @@ import (
 	"go.bug.st/serial"
 )
 
+type LightList []byte
+
 type LEDSequence struct {
 	IsRunning bool
 	Position  int
-	Sequence  []byte
+	Sequence  LightList
+}
+
+func (v LightList) MarshalJSON() ([]byte, error) {
+	return json.Marshal(string(v))
+}
+
+func (v *LightList) UnmarshalJSON(b []byte) error {
+	var s string
+	if err := json.Unmarshal(b, &s); err != nil {
+		return err
+	}
+	*v = []byte(s)
+	return nil
 }
 
 type EEPROMType byte

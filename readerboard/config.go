@@ -207,11 +207,11 @@ func (m *HardwareModel) UnmarshalJSON(b []byte) error {
 	switch s {
 	case "Busylight1.x", "Busylight1":
 		*m = Busylight1
-	case "Busylight2", "Busylight2.x", "Busylight2.0", "Busylight2.1", "Busylight":
+	case "Busylight2", "Busylight2.x", "Busylight2.0", "Busylight2.1", "Busylight", "busylight":
 		*m = Busylight2
-	case "Readerboard3", "Readerboard", "Readerboard3_RGB", "Readerboard3RGB", "ReaderboardRGB", "Readerboard_RGB":
+	case "Readerboard3", "Readerboard", "Readerboard3_RGB", "Readerboard3RGB", "ReaderboardRGB", "Readerboard_RGB", "readerboard", "rb":
 		*m = Readerboard3RGB
-	case "Readerboard3Mono", "ReaderboardMono", "Readerboard3_Mono", "Readerboard3Monochrome", "ReaderboardMonochrome", "Readerboard3_Monochrome":
+	case "Readerboard3Mono", "ReaderboardMono", "Readerboard3_Mono", "Readerboard3Monochrome", "ReaderboardMonochrome", "Readerboard3_Monochrome", "mono":
 		*m = Readerboard3Mono
 	default:
 		return fmt.Errorf("Unsupported HardwareModel value %v", s)
