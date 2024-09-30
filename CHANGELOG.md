@@ -1,3 +1,8 @@
+# Archived
+This project has now been archived and its development is now taking place as part of
+the [Readerboard project](https://github.com/MadScienceZone/readerboard), which is a superset
+of this one.
+
 ## Version 1.10.0
 ### Blight changes
  * Added "Clear times" button and improved support for tracking activity times.
