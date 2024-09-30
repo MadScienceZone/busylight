@@ -1,5 +1,5 @@
 # ARCHIVED
-As of November, 2024, this project is archived. Another project which has long been in the works,
+As of September, 2024, this project is archived. Another project which has long been in the works,
 [Readerboard](https://github.com/MadScienceZone/readerboard), defines hardware, firmware, and software
 to drive LED matrix displays which happen to also include an 8-LED status indicator display which exactly
 mirrors the operation of a Busylight unit. As such, a Readerboard unit is a proper superset of a Busylight
