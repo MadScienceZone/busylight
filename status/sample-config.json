@@ -1,0 +1,49 @@
+{
+	"Colors": "BrRYG",
+	"ColorValues": {
+		"B": "blue",
+		"R": "red",
+		"r": "red",
+		"Y": "yellow",
+		"G": "green"
+	},
+	"StatusLights": {
+		"busy": "S3",
+		"free": "S4",
+		"muted": "S2",
+		"off": "X",
+		"open": "F12$",
+		"start": "S0",
+		"stop": "S1",
+		"urgent": "F01$",
+		"rainbow": "F02134312$",
+		"lowpri": "*4$",
+		"away": "S0"
+	},
+	"Calendars": {
+		"primary": { 
+			"Title": "primary" 
+		},
+		"sample_calendar_name@group.calendar.google.com": { 
+			"Title": "My Team's Group Calendar", 
+			"IgnoreAllDayEvents": true 
+		}
+        },
+	"TokenFile":      "/Users/me/.busylight/auth.json",
+	"CredentialFile": "/Users/me/.busylight/credentials.json",
+	"LogFile":        "/Users/me/.busylight/busylightd.log",
+	"PidFile":        "/Users/me/.busylight/busylightd.pid",
+	"Devices": [
+		"DeviceDir":      "/dev",
+		"DeviceRegexp":   "^tty\\.usbmodem\\d+$",
+		"BaudRate":       9600,
+		"SerialNumbers":  ["0001", "0002"]
+	],
+	"Networks": [
+		{
+			"Global": 15,
+			"Addresses": [1,2,3],
+			"Device": "/dev/tty.usbmodem123"
+		}
+	]
+}

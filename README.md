@@ -1,3 +1,14 @@
+# ARCHIVED
+As of November, 2024, this project is archived. Another project which has long been in the works,
+[Readerboard](https://github.com/MadScienceZone/readerboard), defines hardware, firmware, and software
+to drive LED matrix displays which happen to also include an 8-LED status indicator display which exactly
+mirrors the operation of a Busylight unit. As such, a Readerboard unit is a proper superset of a Busylight
+unit, so it made sense to merge the Busylight project into it.
+
+Going forward, the firmware for both Busylights and Readerboards is compiled from a common source code base,
+which we consider preferable to maintaining two separate but similar code bases.  Over on the Readerboard
+project there are also a number of hardware improvements over the older Busylight units archived here.
+
 # busylight
 DIY computer "do not disturb" indicator
 
